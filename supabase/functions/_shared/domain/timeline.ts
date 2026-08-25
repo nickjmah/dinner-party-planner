@@ -1,15 +1,26 @@
-import { format, parseISO } from 'date-fns';
 import type { Dinner, TimelineTask } from './types.ts';
+
+const partyDayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+const advanceDayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+});
 
 export function sortTimeline(tasks: TimelineTask[]): TimelineTask[] {
   return [...tasks].sort((a, b) => a.day_offset - b.day_offset || a.sort_order - b.sort_order || a.title.localeCompare(b.title));
 }
 
 export function taskDayLabel(dinner: Pick<Dinner, 'event_date'>, dayOffset: number): string {
-  const date = parseISO(`${dinner.event_date}T12:00:00`);
+  const date = new Date(`${dinner.event_date}T12:00:00`);
   date.setDate(date.getDate() + dayOffset);
-  if (dayOffset === 0) return `Party day · ${format(date, 'EEE, MMM d')}`;
-  return format(date, 'EEEE, MMMM d');
+  if (dayOffset === 0) return `Party day · ${partyDayFormatter.format(date)}`;
+  return advanceDayFormatter.format(date);
 }
 
 export function applySavedTimelineState(generated: TimelineTask[], previous: TimelineTask[]): TimelineTask[] {
