@@ -1,0 +1,28 @@
+project_id = "dinner-party-planner"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173/dinner-party-planner/#/login"
+additional_redirect_urls = ["https://localhost:5173/**"]
+enable_signup = false
+
+[storage]
+enabled = true
+file_size_limit = "15MiB"
+
+[functions.guest-unlock]
+verify_jwt = false
+
+[functions.guest-dinner]
+verify_jwt = false
+
