@@ -12,8 +12,8 @@ major_version = 17
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173/dinner-party-planner/#/login"
-additional_redirect_urls = ["https://localhost:5173/**"]
+site_url = "https://nickjmah.github.io/dinner-party-planner/"
+additional_redirect_urls = ["https://nickjmah.github.io/dinner-party-planner/**"]
 enable_signup = false
 
 [storage]
@@ -25,4 +25,3 @@ verify_jwt = false
 
 [functions.guest-dinner]
 verify_jwt = false
-
