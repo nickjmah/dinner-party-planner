@@ -10,8 +10,9 @@ select policies_are('public', 'dinners', array['owner dinners'], 'dinners expose
 select policies_are('public', 'recipes', array['owner recipes'], 'recipes expose only owner policy');
 select policies_are('public', 'ingredients', array['owner ingredients'], 'ingredients expose only owner policy');
 select policies_are('public', 'tasks', array['owner tasks'], 'tasks expose only owner policy');
+select table_privs_are('public', 'dinners', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated owners can use dinners under RLS');
+select table_privs_are('public', 'guest_unlock_attempts', 'authenticated', array[]::text[], 'authenticated clients cannot access guest rate-limit rows');
 select is_empty($$select grantee from information_schema.routine_privileges where routine_schema='public' and routine_name='verify_guest_code' and grantee in ('anon','authenticated','PUBLIC') and privilege_type='EXECUTE'$$, 'guest code verifier is service-role only');
 
 select * from finish();
 rollback;
-
