@@ -6,11 +6,8 @@ Deno.serve(async (request) => {
   try {
     await authenticatedOwner(request);
     const results: Record<string, unknown> = {};
-    const openAiKey = Deno.env.get('OPENAI_API_KEY');
-    if (openAiKey) {
-      const response = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${openAiKey}` } });
-      results.openai = { configured: true, working: response.ok, status: response.status, model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini' };
-    } else results.openai = { configured: false, working: false };
+    const translationResponse = await fetch('https://api.mymemory.translated.net/get?q=hola&langpair=es%7Cen');
+    results.translation = { provider: 'MyMemory free API', configured: true, working: translationResponse.ok, status: translationResponse.status };
     const jinaKey = Deno.env.get('JINA_API_KEY');
     if (jinaKey) {
       const response = await fetch('https://r.jina.ai/https://example.com', { headers: { Authorization: `Bearer ${jinaKey}` } });
@@ -19,4 +16,3 @@ Deno.serve(async (request) => {
     return json(results);
   } catch (error) { return errorResponse(error); }
 });
-

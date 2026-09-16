@@ -8,7 +8,7 @@ A source-grounded dinner-party planning app with a static React frontend on GitH
 - Dinner-scoped, read-only guest links protected by an eight-character code
 - URL, public PDF, Google Drive PDF, private PDF upload, and manual recipe intake
 - Deterministic JSON-LD, microdata, WP Recipe Maker, reader-text, and PDF parsing
-- Automatic one-to-one English translation that rejects changed quantities and times
+- Automatic one-to-one English translation through MyMemory's no-key free API; changed quantities and times are rejected
 - Source snapshots, hashes, and line-level provenance; unverifiable imports are rejected
 - Per-recipe serving scales and automatic shopping-list recalculation
 - Compatible-unit consolidation plus independent mixed-unit progress
@@ -43,8 +43,6 @@ Hash routes are used so GitHub Pages can reliably open project subroutes:
 3. Create the owner in Authentication, then keep public signup disabled.
 4. Configure Edge Function secrets:
 
-   - `OPENAI_API_KEY`
-   - `OPENAI_MODEL` (optional; defaults to `gpt-4o-mini`)
    - `JINA_API_KEY` (optional but recommended for publisher access blocks)
    - `GUEST_TOKEN_SECRET` (at least 32 random characters)
    - `GUEST_RATE_LIMIT_SALT` (at least 32 random characters)
@@ -53,6 +51,8 @@ Hash routes are used so GitHub Pages can reliably open project subroutes:
 5. Deploy `guest-unlock`, `guest-dinner`, `import-recipe`, `process-manual-recipe`, `plan-timeline`, and `test-integrations`.
 
 Privileged keys are never exposed through Vite environment variables. Only variables beginning with `VITE_` are bundled into the public frontend.
+
+Recipe translation does not require an API key. Non-English source lines are sent individually to MyMemory and retained alongside the untouched publisher wording. Anonymous MyMemory usage is currently limited to 5,000 characters per day, so the app reports a recoverable error when that external limit is reached.
 
 ## Private data migration
 
@@ -83,11 +83,10 @@ pnpm run build
 pnpm run test:e2e
 ```
 
-The deterministic suite contains 61 tests covering parsing, canonical ingredients, scaling, mixed units, provenance, translations, shopping progress, make-ahead reasoning, and timeline preservation. The Playwright suite is configured for desktop and mobile.
+The deterministic suite contains 71 tests covering parsing, canonical ingredients, scaling, mixed units, provenance, translations, shopping progress, make-ahead reasoning, and timeline preservation. The Playwright suite is configured for desktop and mobile.
 
 ## GitHub Pages
 
 The workflow in `.github/workflows/pages.yml` validates each push to `main`, builds with repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, and deploys `dist/` to Pages. Configure the repository’s Pages source as **GitHub Actions**.
 
 The original Apps Script app and Drive data are intentionally untouched. Keep them as a read-only backup for 30 days after the new app is verified; do not synchronize edits after cutover.
-

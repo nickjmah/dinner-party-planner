@@ -1,21 +1,75 @@
-import type { ParsedRecipe } from './recipe-parser.ts';
-import { likelyNonEnglish, sourceNumbers } from './domain/translation.ts';
+import { detectRecipeLanguage, sourceNumbers } from './domain/translation.ts';
 
-interface TranslationResult { sourceLanguage: string; title: string; yieldText: string; ingredients: Array<{ sourceIndex: number; text: string }>; steps: Array<{ sourceIndex: number; section: string; text: string }>; }
+interface TranslatableRecipe {
+  title: string;
+  yieldText: string;
+  ingredients: string[];
+  steps: Array<{ section: string; text: string }>;
+}
 
-export async function translateRecipe(recipe: ParsedRecipe): Promise<TranslationResult | null> {
-  if (!likelyNonEnglish(recipe)) return null;
-  const apiKey = Deno.env.get('OPENAI_API_KEY'); if (!apiKey) throw new Error('This recipe needs English translation, but the OpenAI integration is not configured.');
-  const response = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({
-    model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini', temperature: 0,
-    response_format: { type: 'json_object' },
-    messages: [{ role: 'system', content: 'Translate the supplied recipe to natural English. Return JSON only. Preserve every number, unit, temperature, time, qualification, and source-line order exactly. Do not add, remove, combine, split, or correct recipe content. ingredients and steps must each contain every sourceIndex exactly once.' }, { role: 'user', content: JSON.stringify({ expectedShape: { sourceLanguage: 'language name', title: 'English title', yieldText: 'English yield', ingredients: [{ sourceIndex: 0, text: 'translation' }], steps: [{ sourceIndex: 0, section: 'translated section', text: 'translation' }] }, title: recipe.title, yieldText: recipe.yieldText, ingredients: recipe.ingredients.map((text, sourceIndex) => ({ sourceIndex, text })), steps: recipe.steps.map((step, sourceIndex) => ({ sourceIndex, section: step.section, text: step.text })) }) }],
-  }) });
-  if (!response.ok) throw new Error(response.status === 429 ? 'OpenAI quota or rate limit prevented translation.' : 'OpenAI could not translate this recipe.');
-  const raw = await response.json(); const translated = JSON.parse(raw.choices?.[0]?.message?.content || '{}') as TranslationResult;
-  if (translated.ingredients?.length !== recipe.ingredients.length || translated.steps?.length !== recipe.steps.length) throw new Error('The translation did not map one-to-one to the source recipe.');
-  translated.ingredients.forEach((line, index) => { if (line.sourceIndex !== index || sourceNumbers(line.text) !== sourceNumbers(recipe.ingredients[index])) throw new Error(`Translation changed ingredient line ${index + 1}.`); });
-  translated.steps.forEach((line, index) => { if (line.sourceIndex !== index || sourceNumbers(line.text) !== sourceNumbers(recipe.steps[index].text)) throw new Error(`Translation changed instruction ${index + 1}.`); });
-  if (sourceNumbers(translated.yieldText) !== sourceNumbers(recipe.yieldText)) throw new Error('Translation changed the recipe yield.');
+export interface TranslationResult { sourceLanguage: string; title: string; yieldText: string; ingredients: Array<{ sourceIndex: number; text: string }>; steps: Array<{ sourceIndex: number; section: string; text: string }>; }
+
+const LANGUAGE_NAMES: Record<string, string> = { es: 'Spanish', fr: 'French', it: 'Italian', pt: 'Portuguese', ru: 'Russian', ar: 'Arabic', zh: 'Chinese', ja: 'Japanese', ko: 'Korean' };
+const encoder = new TextEncoder();
+
+function decodeEntities(value: string): string {
+  return value.replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+export function translationChunks(value: string, maxBytes = 450): string[] {
+  if (encoder.encode(value).length <= maxBytes) return value ? [value] : [];
+  const words = value.split(/(\s+)/); const chunks: string[] = []; let current = '';
+  for (const word of words) {
+    if (encoder.encode(current + word).length <= maxBytes) { current += word; continue; }
+    if (current.trim()) chunks.push(current.trim()); current = '';
+    if (encoder.encode(word).length <= maxBytes) { current = word.trimStart(); continue; }
+    let piece = '';
+    for (const character of word) {
+      if (encoder.encode(piece + character).length > maxBytes) { if (piece) chunks.push(piece); piece = character; } else piece += character;
+    }
+    current = piece;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function translatedSegment(value: string, language: string, fetcher: typeof fetch): Promise<string> {
+  if (!value.trim()) return '';
+  const output: string[] = [];
+  for (const chunk of translationChunks(value)) {
+    const url = new URL('https://api.mymemory.translated.net/get');
+    url.searchParams.set('q', chunk); url.searchParams.set('langpair', `${language}|en`); url.searchParams.set('mt', '1');
+    let response: Response;
+    try { response = await fetcher(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) }); }
+    catch { throw new Error('The free translation service could not be reached. Try the import again shortly.'); }
+    if (!response.ok) throw new Error(response.status === 429 ? 'The free translation service daily limit has been reached. Try again tomorrow.' : `The free translation service returned HTTP ${response.status}.`);
+    const body = await response.json() as { responseStatus?: number | string; responseDetails?: string; responseData?: { translatedText?: string } };
+    const status = Number(body.responseStatus || response.status);
+    if (status >= 400 || !body.responseData?.translatedText) throw new Error(status === 429 ? 'The free translation service daily limit has been reached. Try again tomorrow.' : `The free translation service could not translate this recipe${body.responseDetails ? `: ${body.responseDetails}` : '.'}`);
+    output.push(decodeEntities(body.responseData.translatedText));
+  }
+  return output.join(' ');
+}
+
+export async function translateRecipe(recipe: TranslatableRecipe, fetcher: typeof fetch = fetch): Promise<TranslationResult | null> {
+  const language = detectRecipeLanguage(recipe); if (!language) return null;
+  const cache = new Map<string, Promise<string>>();
+  const translate = (value: string) => {
+    const key = `${language}\u0000${value}`;
+    if (!cache.has(key)) cache.set(key, translatedSegment(value, language, fetcher));
+    return cache.get(key)!;
+  };
+  const translated: TranslationResult = {
+    sourceLanguage: LANGUAGE_NAMES[language] || language,
+    title: await translate(recipe.title),
+    yieldText: await translate(recipe.yieldText),
+    ingredients: [], steps: [],
+  };
+  for (let index = 0; index < recipe.ingredients.length; index += 1) translated.ingredients.push({ sourceIndex: index, text: await translate(recipe.ingredients[index]) });
+  for (let index = 0; index < recipe.steps.length; index += 1) translated.steps.push({ sourceIndex: index, section: await translate(recipe.steps[index].section), text: await translate(recipe.steps[index].text) });
+  translated.ingredients.forEach((line, index) => { if (sourceNumbers(line.text) !== sourceNumbers(recipe.ingredients[index])) throw new Error(`Translation changed ingredient line ${index + 1}; the import was stopped to protect the source recipe.`); });
+  translated.steps.forEach((line, index) => { if (sourceNumbers(line.text) !== sourceNumbers(recipe.steps[index].text)) throw new Error(`Translation changed instruction ${index + 1}; the import was stopped to protect the source recipe.`); });
+  if (sourceNumbers(translated.yieldText) !== sourceNumbers(recipe.yieldText)) throw new Error('Translation changed the recipe yield; the import was stopped to protect the source recipe.');
   return translated;
 }

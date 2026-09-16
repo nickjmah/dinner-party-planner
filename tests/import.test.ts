@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { choosePdfImportSource } from '../src/lib/import';
-import { likelyNonEnglish, sourceNumbers } from '../src/lib/translation';
+import { detectRecipeLanguage, likelyNonEnglish, sourceNumbers } from '../src/lib/translation';
 
 describe('PDF import source selection', () => {
   it('uses a public URL when the file input contains the browser empty-file placeholder', () => {
@@ -18,11 +18,13 @@ describe('PDF import source selection', () => {
 
 describe('automatic English translation detection', () => {
   it('recognizes Spanish recipes without translated section headings', () => {
-    expect(likelyNonEnglish({
+    const recipe = {
       title: 'Tarta de queso vasca', yieldText: '8 raciones',
       ingredients: ['500 g queso crema', '3 huevos', '1 cucharada harina'],
       steps: [{ text: 'Batir hasta que quede suave.' }, { text: 'Verter en el molde y cocer hasta dorar.' }],
-    })).toBe(true);
+    };
+    expect(likelyNonEnglish(recipe)).toBe(true);
+    expect(detectRecipeLanguage(recipe)).toBe('es');
   });
 
   it('does not send an ordinary English recipe for translation', () => {
