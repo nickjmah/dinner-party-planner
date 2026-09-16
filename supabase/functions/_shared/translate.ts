@@ -1,7 +1,5 @@
 import type { ParsedRecipe } from './recipe-parser.ts';
-
-const likelyNonEnglish = (recipe: ParsedRecipe) => /\b(?:ingredientes|preparación|porciones|mezcla|hornea|aceite|huevos|azúcar|harina|durante|cucharada)\b/i.test([recipe.title, recipe.yieldText, ...recipe.ingredients, ...recipe.steps.map((step) => step.text)].join(' '));
-const sourceNumbers = (value: string) => (value.match(/\d+(?:[.,]\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]/g) || []).join('|');
+import { likelyNonEnglish, sourceNumbers } from './domain/translation.ts';
 
 interface TranslationResult { sourceLanguage: string; title: string; yieldText: string; ingredients: Array<{ sourceIndex: number; text: string }>; steps: Array<{ sourceIndex: number; section: string; text: string }>; }
 
@@ -21,4 +19,3 @@ export async function translateRecipe(recipe: ParsedRecipe): Promise<Translation
   if (sourceNumbers(translated.yieldText) !== sourceNumbers(recipe.yieldText)) throw new Error('Translation changed the recipe yield.');
   return translated;
 }
-

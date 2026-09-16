@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySavedTimelineState, normalizeDayOrder, recommendedDayOffset, reflowDayTimes, sortTimeline, taskDayLabel } from '../src/lib/timeline';
+import { applySavedTimelineState, moveTaskToDay, normalizeDayOrder, recommendedDayOffset, reflowDayTimes, sortTimeline, taskDayLabel } from '../src/lib/timeline';
 import type { Dinner, TimelineTask } from '../src/types';
 
 const task = (id: string, extras: Partial<TimelineTask> = {}) => ({ id, dinner_id: 'dinner_1', recipe_id: 'recipe_1', owner_id: 'owner', title: id, source_step_ids: [id.replace('task', 'step')], day_offset: 0, start_time: '10:00', duration_minutes: 15, active_minutes: 15, passive_minutes: 0, resource: 'counter', assignee: '', status: 'todo', provenance: {}, notes: '', timing_basis: '', storage_method: '', timing_note: '', freezer_suitable: false, sort_order: 1, ingredient_progress: [], created_at: '', updated_at: '', ...extras } as TimelineTask);
@@ -22,6 +22,16 @@ describe('timeline persistence', () => {
     expect(rows.find((row) => row.id === 'task_b')?.start_time).toBe('18:30');
     expect(rows.find((row) => row.id === 'task_early')?.start_time).toBe('12:00');
   });
+  it('moves a task to another day, normalizes both days, and reflows both schedules', () => {
+    const rows = moveTaskToDay([
+      task('task_a', { day_offset: 0, sort_order: 1, active_minutes: 20 }),
+      task('task_b', { day_offset: 0, sort_order: 2, active_minutes: 30 }),
+      task('task_c', { day_offset: -1, sort_order: 7, active_minutes: 15 }),
+    ], 'task_a', -1, '19:00');
+    expect(rows.find((row) => row.id === 'task_b')).toMatchObject({ day_offset: 0, sort_order: 1, start_time: '18:30' });
+    expect(rows.find((row) => row.id === 'task_c')).toMatchObject({ day_offset: -1, sort_order: 1, start_time: '10:00' });
+    expect(rows.find((row) => row.id === 'task_a')).toMatchObject({ day_offset: -1, sort_order: 2, start_time: '10:15' });
+  });
 });
 
 describe('make-ahead reasoning', () => {
@@ -32,4 +42,3 @@ describe('make-ahead reasoning', () => {
   it('shows actual calendar days', () => expect(taskDayLabel({ event_date: '2026-08-28' } as Dinner, -2)).toBe('Wednesday, August 26'));
   it('labels the event date party day', () => expect(taskDayLabel({ event_date: '2026-08-28' } as Dinner, 0)).toBe('Party day · Fri, Aug 28'));
 });
-

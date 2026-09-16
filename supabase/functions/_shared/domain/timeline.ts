@@ -66,6 +66,19 @@ export function reflowDayTimes(tasks: TimelineTask[], dayOffset: number, serveTi
   return tasks.map((task) => times.has(task.id) ? { ...task, start_time: times.get(task.id)! } : task);
 }
 
+export function moveTaskToDay(tasks: TimelineTask[], taskId: string, dayOffset: number, serveTime: string): TimelineTask[] {
+  const moving = tasks.find((task) => task.id === taskId);
+  if (!moving || moving.day_offset === dayOffset) return tasks;
+  const destinationOrder = tasks
+    .filter((task) => task.day_offset === dayOffset)
+    .reduce((highest, task) => Math.max(highest, task.sort_order), 0) + 1;
+  let moved = tasks.map((task) => task.id === taskId ? { ...task, day_offset: dayOffset, sort_order: destinationOrder } : task);
+  moved = normalizeDayOrder(sortTimeline(moved), moving.day_offset);
+  moved = normalizeDayOrder(sortTimeline(moved), dayOffset);
+  moved = reflowDayTimes(moved, moving.day_offset, serveTime);
+  return reflowDayTimes(moved, dayOffset, serveTime);
+}
+
 export function recommendedDayOffset(text: string, recipeTitle: string): { dayOffset: number; reason: string; freezerSuitable: boolean } {
   const combined = `${recipeTitle} ${text}`.toLowerCase();
   if (/freeze|freezer|croquet|cookie dough|unbaked pastry/.test(combined)) {
