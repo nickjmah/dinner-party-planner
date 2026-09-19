@@ -1,4 +1,4 @@
-import { parseIngredient } from '../_shared/domain/quantity.ts';
+import { parseIngredient, parseYieldServings } from '../_shared/domain/quantity.ts';
 import { errorResponse, handleOptions, json } from '../_shared/http.ts';
 import { assertSourceTrace, parseHtmlRecipe, parseMarkdownRecipe, parsePdfRecipe, type ParsedRecipe } from '../_shared/recipe-parser.ts';
 import { assertOwnsDinner, authenticatedOwner } from '../_shared/supabase.ts';
@@ -74,7 +74,7 @@ Deno.serve(async (request) => {
     assertSourceTrace(source.recipe);
     const translation = await translateRecipe(source.recipe);
     const recipeId = newId('recipe');
-    const servings = Number(source.recipe.yieldText.match(/\d+(?:\.\d+)?/g)?.at(-1) || 0) || null;
+    const servings = parseYieldServings(source.recipe.yieldText);
     const sourceUrl = storagePath ? '' : String(body.url || source.finalUrl);
     const recipeRow = { id: recipeId, dinner_id: dinnerId, owner_id: user.id, title: source.recipe.title, short_title: '', source_url: sourceUrl, source_host: sourceUrl ? new URL(sourceUrl).hostname : 'Uploaded PDF', source_type: source.recipe.sourceType, yield_text: source.recipe.yieldText, yield_servings: servings, target_servings: null, prep_minutes: source.recipe.prepMinutes, cook_minutes: source.recipe.cookMinutes, total_minutes: source.recipe.totalMinutes, provenance: { rule: 'source-traced', fetch: storagePath ? 'private-storage' : 'server', parser: source.recipe.sourceType }, fetched_at: new Date().toISOString(), translated_title: translation?.title || '', translated_yield_text: translation?.yieldText || '', translation_language: translation?.sourceLanguage || '', translation_model: translation ? 'mymemory-free' : '' };
     const { error: recipeError } = await client.from('recipes').insert(recipeRow); if (recipeError) throw recipeError;

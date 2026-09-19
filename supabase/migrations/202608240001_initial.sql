@@ -122,6 +122,7 @@ create table public.shopping_items (
   category text not null default 'Other',
   purchased boolean not null default false,
   assignee text not null default '',
+  notes text not null default '',
   covered_quantity numeric not null default 0 check (covered_quantity >= 0),
   manual_covered_quantity numeric not null default 0 check (manual_covered_quantity >= 0),
   component_requirements jsonb not null default '[]'::jsonb,

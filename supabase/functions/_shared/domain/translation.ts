@@ -61,3 +61,29 @@ export function sourceNumbers(value: string): string {
     .map((token) => FRACTION_VALUES[token] || String(Number(token.replace(',', '.'))))
     .join('|');
 }
+
+const MEASUREMENT_ALIASES: Record<string, string> = {
+  g: 'g', gram: 'g', grams: 'g', gramo: 'g', gramos: 'g', gramme: 'g', grammes: 'g', grammo: 'g', grammi: 'g',
+  kg: 'kg', kilogram: 'kg', kilograms: 'kg', kilogramo: 'kg', kilogramos: 'kg', kilogramme: 'kg', kilogrammes: 'kg', chilogrammo: 'kg', chilogrammi: 'kg',
+  ml: 'ml', milliliter: 'ml', milliliters: 'ml', millilitre: 'ml', millilitres: 'ml', mililitro: 'ml', mililitros: 'ml',
+  l: 'l', liter: 'l', liters: 'l', litre: 'l', litres: 'l', litro: 'l', litros: 'l',
+  tsp: 'tsp', teaspoon: 'tsp', teaspoons: 'tsp', cucharadita: 'tsp', cucharaditas: 'tsp', cuillereacafe: 'tsp', cucchiaino: 'tsp', cucchiaini: 'tsp', colherdecha: 'tsp',
+  tbsp: 'tbsp', tablespoon: 'tbsp', tablespoons: 'tbsp', cucharada: 'tbsp', cucharadas: 'tbsp', cuillereasoupe: 'tbsp', cucchiaio: 'tbsp', cucchiai: 'tbsp', colheresdesopa: 'tbsp',
+  cup: 'cup', cups: 'cup', taza: 'cup', tazas: 'cup', tasse: 'cup', tasses: 'cup', tazza: 'cup', tazze: 'cup', xicara: 'cup', xicaras: 'cup',
+  oz: 'oz', ounce: 'oz', ounces: 'oz', onza: 'oz', onzas: 'oz',
+  lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', libra: 'lb', libras: 'lb',
+  minute: 'minute', minutes: 'minute', min: 'minute', mins: 'minute', minuto: 'minute', minutos: 'minute',
+  hour: 'hour', hours: 'hour', hr: 'hour', hrs: 'hour', hora: 'hour', horas: 'hour', heure: 'hour', heures: 'hour', ora: 'hour', ore: 'hour',
+};
+
+export function sourceMeasurements(value: string): string {
+  const normalized = value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const temperatures = [...normalized.matchAll(/\d+(?:[.,]\d+)?\s*°?\s*([cf])\b/g)].map((match) => `deg${match[1]}`);
+  const tokens = normalized.match(/[a-z]+/g) || [];
+  const units = tokens.map((token, index) => {
+    const joinedThree = `${token}${tokens[index + 1] || ''}${tokens[index + 2] || ''}`;
+    const joinedTwo = `${token}${tokens[index + 1] || ''}`;
+    return MEASUREMENT_ALIASES[joinedThree] || MEASUREMENT_ALIASES[joinedTwo] || MEASUREMENT_ALIASES[token] || '';
+  }).filter(Boolean);
+  return [...temperatures, ...units].join('|');
+}

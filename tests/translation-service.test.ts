@@ -32,7 +32,25 @@ describe('free source-preserving translation', () => {
       const translated = source === '500 g queso crema' ? '600 g cream cheese' : source;
       return new Response(JSON.stringify({ responseStatus: 200, responseData: { translatedText: translated } }), { status: 200 });
     }) as unknown as typeof fetch;
-    await expect(translateRecipe(recipe, fetcher)).rejects.toThrow(/changed ingredient line 1/);
+    await expect(translateRecipe(recipe, fetcher)).rejects.toThrow(/ingredient line 1/);
+  });
+
+  it('stops an import if a translation changes a measurement unit', async () => {
+    const fetcher = vi.fn(async (input: URL | RequestInfo) => {
+      const source = new URL(String(input)).searchParams.get('q') || '';
+      const translated = source === '500 g queso crema' ? '500 oz cream cheese' : source;
+      return new Response(JSON.stringify({ responseStatus: 200, responseData: { translatedText: translated } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await expect(translateRecipe(recipe, fetcher)).rejects.toThrow(/quantity or unit/);
+  });
+
+  it('stops an import if a translation changes a temperature unit without a degree symbol', async () => {
+    const fetcher = vi.fn(async (input: URL | RequestInfo) => {
+      const source = new URL(String(input)).searchParams.get('q') || '';
+      const translated = source === 'Hornear 40 minutos a 200 C.' ? 'Bake 40 minutes at 200 F.' : source;
+      return new Response(JSON.stringify({ responseStatus: 200, responseData: { translatedText: translated } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await expect(translateRecipe(recipe, fetcher)).rejects.toThrow(/quantity or unit/);
   });
 
   it('keeps every request below the provider byte limit', () => {

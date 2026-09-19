@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalIngredient, clamp, formatQuantity, parseIngredient, parseNumber, recipeScale, remainingComponents, remainingQuantity } from '../src/lib/quantity';
+import { canonicalIngredient, clamp, formatQuantity, parseIngredient, parseNumber, parseYieldServings, recipeScale, remainingComponents, remainingQuantity } from '../src/lib/quantity';
 import type { Recipe, ShoppingItem } from '../src/types';
 
 describe('source ingredient parsing', () => {
@@ -9,6 +9,9 @@ describe('source ingredient parsing', () => {
   it('keeps boneless chicken descriptive words', () => expect(parseIngredient('1 lb boneless skinless chicken thighs, at room temperature').item).toBe('boneless skinless chicken thighs'));
   it('does not mutate the caller’s source string', () => { const raw = '2 eggs, beaten'; parseIngredient(raw); expect(raw).toBe('2 eggs, beaten'); });
   it('parses standalone fractions', () => expect(parseNumber('3/4')).toBe(.75));
+  it('parses decimal-comma quantities', () => expect(parseIngredient('1,5 kg queso crema')).toMatchObject({ quantity: 1.5, unit: 'kg', item: 'queso crema' }));
+  it('uses the stated yield rather than a later parenthetical number', () => expect(parseYieldServings('Makes 12 cookies (3 per person)')).toBe(12));
+  it('uses the upper end of a serving range', () => expect(parseYieldServings('6–8 servings')).toBe(8));
 });
 
 describe('deterministic canonical ingredients', () => {

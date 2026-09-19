@@ -1,5 +1,7 @@
 import type { Dinner, TimelineTask } from './types.ts';
 
+type KitchenCapacity = Pick<Dinner, 'serve_time' | 'burners' | 'ovens' | 'fryers' | 'cooks'>;
+
 const partyDayFormatter = new Intl.DateTimeFormat('en-US', {
   weekday: 'short',
   month: 'short',
@@ -51,22 +53,49 @@ export function normalizeDayOrder(tasks: TimelineTask[], dayOffset: number): Tim
   return tasks.map((task) => task.day_offset === dayOffset ? { ...task, sort_order: ++order } : task);
 }
 
-export function reflowDayTimes(tasks: TimelineTask[], dayOffset: number, serveTime: string): TimelineTask[] {
+function resourceCapacity(resource: TimelineTask['resource'], kitchen: KitchenCapacity): number {
+  if (resource === 'burner') return Math.max(1, kitchen.burners);
+  if (resource === 'oven') return Math.max(1, kitchen.ovens);
+  if (resource === 'fryer') return Math.max(1, kitchen.fryers);
+  return Number.POSITIVE_INFINITY;
+}
+
+function scheduleRelative(tasks: TimelineTask[], kitchen: KitchenCapacity): Map<string, number> {
+  const starts = new Map<string, number>();
+  const cookUse: number[] = []; const resourceUse = new Map<string, number[]>(); const recipeReady = new Map<string, number>();
+  for (const task of sortTimeline(tasks)) {
+    const active = Math.max(1, task.active_minutes || task.duration_minutes || 5);
+    const duration = Math.max(active, task.duration_minutes || active);
+    const resourceMinutes = ['burner', 'oven', 'fryer'].includes(task.resource) ? duration : 0;
+    const capacity = resourceCapacity(task.resource, kitchen); const usage = resourceUse.get(task.resource) || [];
+    let start = recipeReady.get(task.recipe_id || '') || 0;
+    while (start < 2_880) {
+      const cooksAvailable = Array.from({ length: active }, (_, offset) => cookUse[start + offset] || 0).every((used) => used < Math.max(1, kitchen.cooks));
+      const resourceAvailable = !resourceMinutes || Array.from({ length: resourceMinutes }, (_, offset) => usage[start + offset] || 0).every((used) => used < capacity);
+      if (cooksAvailable && resourceAvailable) break;
+      start += 1;
+    }
+    starts.set(task.id, start);
+    for (let offset = 0; offset < active; offset += 1) cookUse[start + offset] = (cookUse[start + offset] || 0) + 1;
+    for (let offset = 0; offset < resourceMinutes; offset += 1) usage[start + offset] = (usage[start + offset] || 0) + 1;
+    resourceUse.set(task.resource, usage);
+    if (task.recipe_id) recipeReady.set(task.recipe_id, start + duration);
+  }
+  return starts;
+}
+
+export function reflowDayTimes(tasks: TimelineTask[], dayOffset: number, kitchenOrServeTime: KitchenCapacity | string): TimelineTask[] {
   const dayTasks = sortTimeline(tasks.filter((task) => task.day_offset === dayOffset));
-  const [serveHour, serveMinute] = serveTime.split(':').map(Number);
-  const totalMinutes = dayTasks.reduce((sum, task) => sum + Math.max(task.active_minutes || task.duration_minutes, 5), 0);
-  let cursor = dayOffset === 0 ? serveHour * 60 + serveMinute - totalMinutes : 10 * 60;
-  const times = new Map<string, string>();
-  dayTasks.forEach((task) => {
-    const hour = Math.floor(cursor / 60) % 24;
-    const minute = cursor % 60;
-    times.set(task.id, `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
-    cursor += Math.max(task.active_minutes || task.duration_minutes, 5);
-  });
+  const kitchen: KitchenCapacity = typeof kitchenOrServeTime === 'string' ? { serve_time: kitchenOrServeTime, burners: 1, ovens: 1, fryers: 1, cooks: 1 } : kitchenOrServeTime;
+  const relative = scheduleRelative(dayTasks, kitchen);
+  const makespan = dayTasks.reduce((latest, task) => Math.max(latest, (relative.get(task.id) || 0) + Math.max(task.duration_minutes || 0, task.active_minutes || 0, 1)), 0);
+  const [serveHour, serveMinute] = kitchen.serve_time.split(':').map(Number);
+  const offset = dayOffset === 0 ? Math.max(0, serveHour * 60 + serveMinute - makespan) : 10 * 60;
+  const times = new Map([...relative].map(([id, start]) => { const value = offset + start; return [id, `${String(Math.floor(value / 60) % 24).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`]; }));
   return tasks.map((task) => times.has(task.id) ? { ...task, start_time: times.get(task.id)! } : task);
 }
 
-export function moveTaskToDay(tasks: TimelineTask[], taskId: string, dayOffset: number, serveTime: string): TimelineTask[] {
+export function moveTaskToDay(tasks: TimelineTask[], taskId: string, dayOffset: number, kitchenOrServeTime: KitchenCapacity | string): TimelineTask[] {
   const moving = tasks.find((task) => task.id === taskId);
   if (!moving || moving.day_offset === dayOffset) return tasks;
   const destinationOrder = tasks
@@ -75,8 +104,15 @@ export function moveTaskToDay(tasks: TimelineTask[], taskId: string, dayOffset: 
   let moved = tasks.map((task) => task.id === taskId ? { ...task, day_offset: dayOffset, sort_order: destinationOrder } : task);
   moved = normalizeDayOrder(sortTimeline(moved), moving.day_offset);
   moved = normalizeDayOrder(sortTimeline(moved), dayOffset);
-  moved = reflowDayTimes(moved, moving.day_offset, serveTime);
-  return reflowDayTimes(moved, dayOffset, serveTime);
+  moved = reflowDayTimes(moved, moving.day_offset, kitchenOrServeTime);
+  return reflowDayTimes(moved, dayOffset, kitchenOrServeTime);
+}
+
+export function durationFromText(text: string): number {
+  const hour = Number(text.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|hr|h)\b/i)?.[1] || 0);
+  const minute = Number(text.match(/(\d+)\s*(?:minutes?|mins?|min)\b/i)?.[1] || 0);
+  const explicit = Math.round(hour * 60 + minute);
+  return Math.min(720, Math.max(5, explicit || (/bake|roast|simmer/i.test(text) ? 30 : 15)));
 }
 
 export function recommendedDayOffset(text: string, recipeTitle: string): { dayOffset: number; reason: string; freezerSuitable: boolean } {

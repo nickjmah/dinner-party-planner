@@ -15,12 +15,12 @@ const minutes = (value: unknown): number | null => {
   const result = Number(hour?.[1] || 0) * 60 + Number(minute?.[1] || 0); return result || null;
 };
 
-function recipeNode(value: unknown): Record<string, unknown> | null {
-  if (Array.isArray(value)) { for (const item of value) { const found = recipeNode(item); if (found) return found; } return null; }
-  if (!value || typeof value !== 'object') return null;
+function recipeNodes(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.flatMap(recipeNodes);
+  if (!value || typeof value !== 'object') return [];
   const node = value as Record<string, unknown>; const type = node['@type'];
-  if (type === 'Recipe' || (Array.isArray(type) && type.includes('Recipe'))) return node;
-  return recipeNode(node['@graph']);
+  if (type === 'Recipe' || (Array.isArray(type) && type.includes('Recipe'))) return [node];
+  return recipeNodes(node['@graph']);
 }
 
 function instructionLines(value: unknown, section = ''): SourceStep[] {
@@ -36,13 +36,26 @@ export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe')
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) throw new Error('The recipe page could not be read.');
   const traceCorpus = `${html}\n${document.documentElement?.textContent || ''}`;
+  const structured: ParsedRecipe[] = [];
+  const fingerprints = new Set<string>();
   for (const script of [...document.querySelectorAll('script[type="application/ld+json"]')]) {
     try {
-      const node = recipeNode(JSON.parse(script.textContent || 'null')); if (!node) continue;
-      const ingredients = (Array.isArray(node.recipeIngredient) ? node.recipeIngredient : []).map(normalize).filter(Boolean);
-      const steps = instructionLines(node.recipeInstructions);
-      if (ingredients.length && steps.length) return { title: normalize(node.name) || fallbackTitle, yieldText: normalize(Array.isArray(node.recipeYield) ? node.recipeYield[0] : node.recipeYield), prepMinutes: minutes(node.prepTime), cookMinutes: minutes(node.cookTime), totalMinutes: minutes(node.totalTime), ingredients, steps, sourceType: 'json-ld', traceCorpus };
+      for (const node of recipeNodes(JSON.parse(script.textContent || 'null'))) {
+        const ingredients = (Array.isArray(node.recipeIngredient) ? node.recipeIngredient : []).map(normalize).filter(Boolean);
+        const steps = instructionLines(node.recipeInstructions); if (!ingredients.length || !steps.length) continue;
+        const fingerprint = JSON.stringify([normalize(node.name), ingredients, steps]); if (fingerprints.has(fingerprint)) continue; fingerprints.add(fingerprint);
+        structured.push({ title: normalize(node.name) || fallbackTitle, yieldText: normalize(Array.isArray(node.recipeYield) ? node.recipeYield[0] : node.recipeYield), prepMinutes: minutes(node.prepTime), cookMinutes: minutes(node.cookTime), totalMinutes: minutes(node.totalTime), ingredients, steps, sourceType: 'json-ld', traceCorpus });
+      }
     } catch { /* Malformed unrelated JSON-LD is ignored. */ }
+  }
+  if (structured.length === 1) return structured[0];
+  if (structured.length > 1) {
+    const primary = structured[0]; const pageTitle = normalize(document.querySelector('h1')?.textContent) || primary.title;
+    return {
+      ...primary, title: pageTitle, sourceType: 'json-ld-composite',
+      ingredients: structured.flatMap((recipe) => recipe.ingredients),
+      steps: structured.flatMap((recipe) => recipe.steps.map((step) => ({ ...step, section: step.section || recipe.title }))),
+    };
   }
   const itemText = (selector: string) => [...document.querySelectorAll(selector)].map((node) => normalize(node.getAttribute('content') || node.textContent)).filter(Boolean);
   let ingredients = itemText('[itemprop="recipeIngredient"]');
@@ -61,11 +74,14 @@ export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe')
   return { title: normalize(document.querySelector('[itemprop="name"], .wprm-recipe-name, h1')?.textContent) || fallbackTitle, yieldText: normalize(document.querySelector('[itemprop="recipeYield"], .wprm-recipe-servings')?.textContent), prepMinutes: minutes(document.querySelector('[itemprop="prepTime"], .wprm-recipe-prep_time')?.textContent), cookMinutes: minutes(document.querySelector('[itemprop="cookTime"], .wprm-recipe-cook_time')?.textContent), totalMinutes: minutes(document.querySelector('[itemprop="totalTime"], .wprm-recipe-total_time')?.textContent), ingredients, steps, sourceType, traceCorpus };
 }
 
+const INGREDIENT_HEADING = '(?:Ingredients|Ingredientes|Ingrédients|Ingredienti)';
+const INSTRUCTION_HEADING = '(?:Directions|Instructions|Instrucciones|Preparation|Preparación|Préparation|Method|Méthode|Metodo|Método|Preparazione|Modo de preparo|Preparação)';
+
 export function parseMarkdownRecipe(markdown: string, fallbackTitle = 'Imported recipe'): ParsedRecipe {
   const title = normalize(markdown.match(/^#\s+(.+)$/m)?.[1] || markdown.match(/^Title:\s*(.+)$/mi)?.[1] || fallbackTitle);
   const yieldText = normalize(markdown.match(/(?:Servings|Yield|Makes):?\s*\n?\s*([^\n]+)/i)?.[1]);
-  const ingredientBlock = markdown.match(/#{1,4}\s+(?:Ingredients|Ingredientes)\s*\n([\s\S]*?)(?=\n#{1,4}\s+|$)/i)?.[1] || '';
-  const stepBlock = markdown.match(/#{1,4}\s+(?:Directions|Instructions|Preparation|Method|Preparación)\s*\n([\s\S]*?)(?=\n#{1,4}\s+|$)/i)?.[1] || '';
+  const ingredientBlock = markdown.match(new RegExp(`#{1,4}\\s+${INGREDIENT_HEADING}\\s*\\n([\\s\\S]*?)(?=\\n#{1,4}\\s+|$)`, 'i'))?.[1] || '';
+  const stepBlock = markdown.match(new RegExp(`#{1,4}\\s+${INSTRUCTION_HEADING}\\s*\\n([\\s\\S]*?)(?=\\n#{1,4}\\s+|$)`, 'i'))?.[1] || '';
   const ingredients = ingredientBlock.split('\n').map((line) => normalize(line.replace(/^\s*[-*+]\s+/, ''))).filter(Boolean);
   const steps = stepBlock.split('\n').map((line) => normalize(line.replace(/^\s*(?:\d+[.)]|[-*+])\s+/, ''))).filter(Boolean).map((text) => ({ section: '', text }));
   if (!ingredients.length || !steps.length) throw new Error('The fallback reader did not expose complete ingredient and instruction sections.');
@@ -75,8 +91,8 @@ export function parseMarkdownRecipe(markdown: string, fallbackTitle = 'Imported 
 export async function parsePdfRecipe(bytes: Uint8Array, fallbackTitle = 'Imported PDF recipe'): Promise<ParsedRecipe> {
   const result = await extractText(bytes, { mergePages: true });
   const text = Array.isArray(result.text) ? result.text.join('\n') : String(result.text || '');
-  const ingredientMatch = text.match(/(?:^|\n)\s*(?:INGREDIENTS|Ingredientes)\s*\n([\s\S]*?)(?=\n\s*(?:DIRECTIONS|INSTRUCTIONS|PREPARATION|METHOD|Preparación)\b)/i);
-  const stepMatch = text.match(/(?:^|\n)\s*(?:DIRECTIONS|INSTRUCTIONS|PREPARATION|METHOD|Preparación)\s*\n([\s\S]*?)(?=\n\s*(?:NOTES?|PRIVATE NOTES?|Nutrition)\b|$)/i);
+  const ingredientMatch = text.match(new RegExp(`(?:^|\\n)\\s*${INGREDIENT_HEADING}\\s*\\n([\\s\\S]*?)(?=\\n\\s*${INSTRUCTION_HEADING}\\b)`, 'i'));
+  const stepMatch = text.match(new RegExp(`(?:^|\\n)\\s*${INSTRUCTION_HEADING}\\s*\\n([\\s\\S]*?)(?=\\n\\s*(?:NOTES?|PRIVATE NOTES?|Nutrition)\\b|$)`, 'i'));
   if (!ingredientMatch || !stepMatch) throw new Error('The PDF does not contain clearly traceable ingredient and instruction sections.');
   const ingredients = ingredientMatch[1].split('\n').map(normalize).filter((line) => line && !/^\d+$/.test(line));
   const steps = stepMatch[1].split(/\n(?=(?:Step\s+)?\d+[.)]?\s+)/i).map((line) => normalize(line.replace(/^(?:Step\s+)?\d+[.)]?\s*/i, ''))).filter(Boolean).map((step) => ({ section: '', text: step }));
@@ -91,4 +107,3 @@ export function assertSourceTrace(recipe: ParsedRecipe): void {
     if (!corpus.includes(normalize(line).toLowerCase())) throw new Error(`Recipe line ${index + 1} cannot be traced to the fetched source.`);
   });
 }
-

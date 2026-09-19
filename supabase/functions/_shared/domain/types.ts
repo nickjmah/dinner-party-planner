@@ -96,6 +96,7 @@ export interface ShoppingItem {
   category: string;
   purchased: boolean;
   assignee: string;
+  notes: string;
   covered_quantity: number;
   manual_covered_quantity: number;
   component_requirements: QuantityComponent[];
@@ -146,6 +147,6 @@ export interface GuestDinner {
   recipes: Array<Pick<Recipe, 'title' | 'short_title' | 'source_url' | 'source_host' | 'source_type' | 'yield_text' | 'yield_servings' | 'target_servings' | 'prep_minutes' | 'cook_minutes' | 'total_minutes' | 'translated_title' | 'translated_yield_text' | 'translation_language' | 'created_at' | 'updated_at'>>;
   ingredients: Array<Pick<Ingredient, 'position' | 'raw_text' | 'translated_text' | 'quantity' | 'unit' | 'item' | 'notes'>>;
   steps: Array<Pick<RecipeStep, 'position' | 'section' | 'raw_text' | 'translated_section' | 'translated_text'>>;
-  shopping: Array<Pick<ShoppingItem, 'item' | 'quantity' | 'unit' | 'category' | 'purchased' | 'covered_quantity' | 'component_requirements' | 'covered_components'>>;
-  tasks: Array<Pick<TimelineTask, 'title' | 'source_step_ids' | 'day_offset' | 'start_time' | 'duration_minutes' | 'active_minutes' | 'passive_minutes' | 'resource' | 'assignee' | 'status' | 'timing_basis' | 'storage_method' | 'timing_note' | 'freezer_suitable' | 'sort_order' | 'created_at' | 'updated_at'>>;
+  shopping: Array<Pick<ShoppingItem, 'item' | 'quantity' | 'unit' | 'category' | 'purchased' | 'notes' | 'covered_quantity' | 'component_requirements' | 'covered_components'>>;
+  tasks: Array<Pick<TimelineTask, 'title' | 'source_step_ids' | 'day_offset' | 'start_time' | 'duration_minutes' | 'active_minutes' | 'passive_minutes' | 'resource' | 'assignee' | 'status' | 'notes' | 'timing_basis' | 'storage_method' | 'timing_note' | 'freezer_suitable' | 'sort_order' | 'created_at' | 'updated_at'>>;
 }

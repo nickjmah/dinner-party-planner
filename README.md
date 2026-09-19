@@ -8,13 +8,13 @@ A source-grounded dinner-party planning app with a static React frontend on GitH
 - Dinner-scoped, read-only guest links protected by an eight-character code
 - URL, public PDF, Google Drive PDF, private PDF upload, and manual recipe intake
 - Deterministic JSON-LD, microdata, WP Recipe Maker, reader-text, and PDF parsing
-- Automatic one-to-one English translation through MyMemory's no-key free API; changed quantities and times are rejected
+- Automatic one-to-one English translation through MyMemory's no-key free API; changed quantities, units, and times are rejected
 - Source snapshots, hashes, and line-level provenance; unverifiable imports are rejected
 - Per-recipe serving scales and automatic shopping-list recalculation
 - Compatible-unit consolidation plus independent mixed-unit progress
 - Purchased-item hiding and ingredient-used/on-hand deductions
-- Persistent drag ordering, calendar-day controls, make-ahead/freezer suggestions, and equipment labels
-- Chef notes, manual recipe editing/deletion, guest views, recipe printouts, and a complete dinner packet
+- Persistent drag ordering, calendar-day controls, make-ahead/freezer suggestions, and kitchen-capacity-aware scheduling
+- Persistent notes on each shopping item and prep task, manual recipe editing/deletion, guest views, recipe printouts, and a complete dinner packet
 - Responsive desktop rail, phone bottom navigation, and ink-saving print layouts
 
 ## Security model
@@ -83,7 +83,7 @@ pnpm run build
 pnpm run test:e2e
 ```
 
-The deterministic suite contains 71 tests covering parsing, canonical ingredients, scaling, mixed units, provenance, translations, shopping progress, make-ahead reasoning, and timeline preservation. The Playwright suite is configured for desktop and mobile.
+The deterministic suite contains 83 tests covering parsing, canonical ingredients, scaling, mixed units, provenance, translations, shopping progress, make-ahead reasoning, kitchen capacity, and timeline preservation. The Playwright suite is configured for desktop and mobile.
 
 ## GitHub Pages
 

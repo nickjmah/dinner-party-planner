@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sourceMeasurements, sourceNumbers } from './translation';
 
 export const SourceLineSchema = z.object({
   sourceIndex: z.number().int().nonnegative(),
@@ -21,9 +22,8 @@ export function assertTracedLines(sourceText: string, lines: Array<{ sourceText:
 }
 
 export function assertTranslationNumbersPreserved(source: string, translation: string): void {
-  const numbers = (value: string) => value.match(/\d+(?:[.,]\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]/g) || [];
-  if (numbers(source).join('|') !== numbers(translation).join('|')) {
-    throw new Error('The translation changed a source quantity, temperature, or time.');
+  if (sourceNumbers(source) !== sourceNumbers(translation) || sourceMeasurements(source) !== sourceMeasurements(translation)) {
+    throw new Error('The translation changed a source quantity, unit, temperature, or time.');
   }
 }
 
@@ -39,4 +39,3 @@ export function validateOneToOneTranslation(sourceLines: string[], translated: z
   });
   return parsed.sort((a, b) => a.sourceIndex - b.sourceIndex).map((line) => line.outputText);
 }
-

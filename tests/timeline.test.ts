@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySavedTimelineState, moveTaskToDay, normalizeDayOrder, recommendedDayOffset, reflowDayTimes, sortTimeline, taskDayLabel } from '../src/lib/timeline';
+import { applySavedTimelineState, durationFromText, moveTaskToDay, normalizeDayOrder, recommendedDayOffset, reflowDayTimes, sortTimeline, taskDayLabel } from '../src/lib/timeline';
 import type { Dinner, TimelineTask } from '../src/types';
 
 const task = (id: string, extras: Partial<TimelineTask> = {}) => ({ id, dinner_id: 'dinner_1', recipe_id: 'recipe_1', owner_id: 'owner', title: id, source_step_ids: [id.replace('task', 'step')], day_offset: 0, start_time: '10:00', duration_minutes: 15, active_minutes: 15, passive_minutes: 0, resource: 'counter', assignee: '', status: 'todo', provenance: {}, notes: '', timing_basis: '', storage_method: '', timing_note: '', freezer_suitable: false, sort_order: 1, ingredient_progress: [], created_at: '', updated_at: '', ...extras } as TimelineTask);
@@ -32,6 +32,23 @@ describe('timeline persistence', () => {
     expect(rows.find((row) => row.id === 'task_c')).toMatchObject({ day_offset: -1, sort_order: 1, start_time: '10:00' });
     expect(rows.find((row) => row.id === 'task_a')).toMatchObject({ day_offset: -1, sort_order: 2, start_time: '10:15' });
   });
+  it('runs independent resources in parallel when cooks and equipment are available', () => {
+    const kitchen = { serve_time: '19:00', burners: 2, ovens: 1, fryers: 1, cooks: 2 } as Dinner;
+    const rows = reflowDayTimes([
+      task('task_burner', { recipe_id: 'recipe_a', resource: 'burner', duration_minutes: 30, active_minutes: 30, sort_order: 1 }),
+      task('task_oven', { recipe_id: 'recipe_b', resource: 'oven', duration_minutes: 30, active_minutes: 10, sort_order: 2 }),
+    ], 0, kitchen);
+    expect(rows.map((row) => row.start_time)).toEqual(['18:30', '18:30']);
+  });
+  it('serializes tasks when the required equipment is at capacity', () => {
+    const kitchen = { serve_time: '19:00', burners: 2, ovens: 1, fryers: 1, cooks: 2 } as Dinner;
+    const rows = reflowDayTimes([
+      task('task_oven_a', { recipe_id: 'recipe_a', resource: 'oven', duration_minutes: 30, active_minutes: 10, sort_order: 1 }),
+      task('task_oven_b', { recipe_id: 'recipe_b', resource: 'oven', duration_minutes: 30, active_minutes: 10, sort_order: 2 }),
+    ], 0, kitchen);
+    expect(rows.map((row) => row.start_time)).toEqual(['18:00', '18:30']);
+  });
+  it('parses hour-and-minute durations', () => expect(durationFromText('Bake for 1 hour 30 minutes.')).toBe(90));
 });
 
 describe('make-ahead reasoning', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { choosePdfImportSource } from '../src/lib/import';
-import { detectRecipeLanguage, likelyNonEnglish, sourceNumbers } from '../src/lib/translation';
+import { detectRecipeLanguage, likelyNonEnglish, sourceMeasurements, sourceNumbers } from '../src/lib/translation';
 
 describe('PDF import source selection', () => {
   it('uses a public URL when the file input contains the browser empty-file placeholder', () => {
@@ -36,5 +36,10 @@ describe('automatic English translation detection', () => {
 
   it('treats decimal commas and decimal points as the same source number', () => {
     expect(sourceNumbers('1,5 kg at 180 °C')).toBe(sourceNumbers('1.5 kg at 180°C'));
+  });
+
+  it('normalizes translated measurement names but distinguishes incompatible units', () => {
+    expect(sourceMeasurements('2 cucharadas durante 1 hora')).toBe(sourceMeasurements('2 tablespoons for 1 hour'));
+    expect(sourceMeasurements('500 g')).not.toBe(sourceMeasurements('500 oz'));
   });
 });

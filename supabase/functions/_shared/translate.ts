@@ -1,4 +1,4 @@
-import { detectRecipeLanguage, sourceNumbers } from './domain/translation.ts';
+import { detectRecipeLanguage, sourceMeasurements, sourceNumbers } from './domain/translation.ts';
 
 interface TranslatableRecipe {
   title: string;
@@ -68,8 +68,14 @@ export async function translateRecipe(recipe: TranslatableRecipe, fetcher: typeo
   };
   for (let index = 0; index < recipe.ingredients.length; index += 1) translated.ingredients.push({ sourceIndex: index, text: await translate(recipe.ingredients[index]) });
   for (let index = 0; index < recipe.steps.length; index += 1) translated.steps.push({ sourceIndex: index, section: await translate(recipe.steps[index].section), text: await translate(recipe.steps[index].text) });
-  translated.ingredients.forEach((line, index) => { if (sourceNumbers(line.text) !== sourceNumbers(recipe.ingredients[index])) throw new Error(`Translation changed ingredient line ${index + 1}; the import was stopped to protect the source recipe.`); });
-  translated.steps.forEach((line, index) => { if (sourceNumbers(line.text) !== sourceNumbers(recipe.steps[index].text)) throw new Error(`Translation changed instruction ${index + 1}; the import was stopped to protect the source recipe.`); });
-  if (sourceNumbers(translated.yieldText) !== sourceNumbers(recipe.yieldText)) throw new Error('Translation changed the recipe yield; the import was stopped to protect the source recipe.');
+  translated.ingredients.forEach((line, index) => {
+    const source = recipe.ingredients[index];
+    if (sourceNumbers(line.text) !== sourceNumbers(source) || sourceMeasurements(line.text) !== sourceMeasurements(source)) throw new Error(`Translation changed a quantity or unit on ingredient line ${index + 1}; the import was stopped to protect the source recipe.`);
+  });
+  translated.steps.forEach((line, index) => {
+    const source = recipe.steps[index].text;
+    if (sourceNumbers(line.text) !== sourceNumbers(source) || sourceMeasurements(line.text) !== sourceMeasurements(source)) throw new Error(`Translation changed a quantity or unit in instruction ${index + 1}; the import was stopped to protect the source recipe.`);
+  });
+  if (sourceNumbers(translated.yieldText) !== sourceNumbers(recipe.yieldText) || sourceMeasurements(translated.yieldText) !== sourceMeasurements(recipe.yieldText)) throw new Error('Translation changed the recipe yield or unit; the import was stopped to protect the source recipe.');
   return translated;
 }

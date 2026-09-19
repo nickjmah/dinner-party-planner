@@ -33,9 +33,17 @@ describe('shopping consolidation', () => {
     expect(row.quantity).toBeNull(); expect(row.component_requirements.map((part) => part.unit)).toEqual(['each', 'oz']);
   });
   it('keeps raw publisher wording in source metadata', () => expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'salt', null, '', 'Kosher salt, to taste')])[0].raw_sources).toEqual([expect.objectContaining({ rawText: 'Kosher salt, to taste' })]));
-  it('preserves purchased status during a rebuild', () => {
+  it('clears purchased status when a rebuilt requirement increases', () => {
     const first = build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 2, 'each')])[0];
-    expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 3, 'each')], [{ ...first, purchased: true }])[0].purchased).toBe(true);
+    expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 3, 'each')], [{ ...first, purchased: true }])[0].purchased).toBe(false);
+  });
+  it('preserves purchased status when the requirement does not increase', () => {
+    const first = build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 3, 'each')])[0];
+    expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 2, 'each')], [{ ...first, purchased: true }])[0].purchased).toBe(true);
+  });
+  it('preserves row notes during a rebuild', () => {
+    const first = build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 2, 'each')])[0];
+    expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 2, 'each')], [{ ...first, notes: 'Buy free range' }])[0].notes).toBe('Buy free range');
   });
   it('clamps simple manual coverage to the rebuilt requirement', () => {
     const first = build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 10, 'each')])[0];
@@ -48,4 +56,3 @@ describe('shopping consolidation', () => {
   });
   it('does not combine distinct tomato varieties', () => expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'cherry tomato', 2, 'each'), ingredient('ingredient_2', 'recipe_1', 'plum tomato', 3, 'each')])).toHaveLength(2));
 });
-

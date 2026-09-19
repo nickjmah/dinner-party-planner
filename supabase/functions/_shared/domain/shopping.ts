@@ -40,6 +40,19 @@ function categoryFor(item: string): string {
   return 'Other';
 }
 
+function requirementsIncreased(previous: ShoppingItem | undefined, simple: number | null, requirements: QuantityComponent[]): boolean {
+  if (!previous) return false;
+  const priorMixed = Array.isArray(previous.component_requirements) && previous.component_requirements.length > 0;
+  const nextMixed = requirements.length > 0;
+  if (priorMixed !== nextMixed) return true;
+  if (!nextMixed) {
+    if (simple == null || previous.quantity == null) return simple !== previous.quantity;
+    return simple > previous.quantity + 1e-9;
+  }
+  const prior = new Map(previous.component_requirements.map((part) => [part.key, Number(part.quantity)]));
+  return requirements.some((part) => !prior.has(part.key) || part.quantity > (prior.get(part.key) || 0) + 1e-9);
+}
+
 export function buildShoppingItems(input: ShoppingBuildInput): ShoppingItem[] {
   const recipeById = new Map(input.recipes.map((recipe) => [recipe.id, recipe]));
   const grouped = new Map<string, SourcePart[]>();
@@ -67,7 +80,7 @@ export function buildShoppingItems(input: ShoppingBuildInput): ShoppingItem[] {
       id: previous?.id || `shop_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`, dinner_id: input.dinnerId, owner_id: input.ownerId, key, item,
       quantity: simple, unit: mixed ? components.map((part) => `${part.quantity} ${part.unit}`).join(' + ') : components[0]?.unit || '',
       raw_sources: sources.map((source) => ({ ingredientId: source.ingredientId, recipeId: source.recipeId, recipeTitle: source.recipeTitle, rawText: source.rawText, scaledQuantity: source.quantity, unit: source.unit })),
-      category: previous?.category || categoryFor(item), purchased: previous?.purchased || false, assignee: previous?.assignee || '',
+      category: previous?.category || categoryFor(item), purchased: Boolean(previous?.purchased) && !requirementsIncreased(previous, simple, requirements), assignee: previous?.assignee || '', notes: previous?.notes || '',
       covered_quantity: mixed ? 0 : input.tasks ? 0 : clamp(Number(previous?.covered_quantity || 0), 0, simple || 0),
       manual_covered_quantity: mixed ? 0 : clamp(Number(previous?.manual_covered_quantity || 0), 0, simple || 0),
       component_requirements: requirements, covered_components: coveredComponents, manual_covered_components: manualComponents,

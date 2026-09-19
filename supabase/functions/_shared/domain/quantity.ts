@@ -26,7 +26,7 @@ export interface ParsedIngredient {
 }
 
 export function parseNumber(value: string): number | null {
-  const clean = value.trim();
+  const clean = value.trim().replace(',', '.');
   const unicode = Object.entries(FRACTIONS).find(([symbol]) => clean.includes(symbol));
   if (unicode) {
     const whole = Number(clean.replace(unicode[0], '').trim() || 0);
@@ -45,9 +45,21 @@ export function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function parseYieldServings(value: string): number | null {
+  const text = value.toLowerCase().replace(/,/g, '.');
+  const number = '(\\d+(?:\\.\\d+)?)'; const range = `(?:\\s*(?:-|–|to|a)\\s*${number})?`;
+  const label = '(?:serves?|servings?|makes?|yield|porciones?|raciones?|doses?|portions?)';
+  const after = text.match(new RegExp(`${label}\\s*:?\\s*${number}${range}`, 'i'));
+  const before = text.match(new RegExp(`${number}${range}\\s*${label}`, 'i'));
+  const match = after || before || text.match(new RegExp(`${number}${range}`, 'i'));
+  if (!match) return null;
+  const values = match.slice(1).filter(Boolean).map(Number).filter(Number.isFinite);
+  return values.length ? Math.max(...values) : null;
+}
+
 export function parseIngredient(rawText: string): ParsedIngredient {
   const source = rawText.trim().replace(/\s+/g, ' ');
-  const amountMatch = source.match(/^(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)(?:\s*(?:-|–|to)\s*(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?|\d+\/\d+))?/i);
+  const amountMatch = source.match(/^(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)(?:\s*(?:-|–|to)\s*(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?|\d+\/\d+))?/i);
   const quantity = amountMatch ? parseNumber(amountMatch[2] || amountMatch[1]) : null;
   let rest = amountMatch ? source.slice(amountMatch[0].length).trim() : source;
   rest = rest.replace(/^\s*[×x]\s*/, '');
