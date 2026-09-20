@@ -82,6 +82,7 @@ export function canonicalIngredient(input: string): string {
     .replace(/extra[- ]virgin/g, 'extra virgin')
     .replace(/\balli?oli\b|\bcupaioli\b/g, 'aioli')
     .replace(/vegetable of other neutral oil/g, 'neutral oil')
+    .replace(/\bunsalted butter\s+or\s+nonstick spray(?:\s+for\s+greasing\s+(?:the\s+)?pan)?\b/g, 'unsalted butter')
     .replace(/pimenton picante/g, 'hot smoked spanish paprika')
     .replace(/\b(coarse sea|kosher|sea|fine sea) salt\b/g, 'salt')
     .replace(/\bripe plum tomatoes?\b|\bplum tomatoes?\b/g, 'plum tomato')
@@ -128,4 +129,18 @@ export function formatQuantity(value: number | null): string {
   if (value == null) return 'As needed';
   if (Number.isInteger(value)) return String(value);
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+}
+
+type ShoppingQuantityView = Pick<ShoppingItem, 'quantity' | 'unit' | 'component_requirements' | 'unquantified_required'> & Partial<Pick<ShoppingItem, 'covered_quantity' | 'manual_covered_quantity' | 'covered_components' | 'manual_covered_components'>>;
+
+export function shoppingQuantityLabels(item: ShoppingQuantityView): string[] {
+  const requirements = Array.isArray(item.component_requirements) ? item.component_requirements : [];
+  const labels = requirements.length
+    ? requirements.map((component) => {
+      const remaining = clamp(component.quantity - Number(item.covered_components?.[component.key] || 0) - Number(item.manual_covered_components?.[component.key] || 0), 0, component.quantity);
+      return `${formatQuantity(remaining)} ${component.unit}`.trim();
+    })
+    : item.quantity == null ? [] : [`${formatQuantity(clamp(item.quantity - Number(item.covered_quantity || 0) - Number(item.manual_covered_quantity || 0), 0, item.quantity))} ${item.unit}`.trim()];
+  if (item.unquantified_required || !labels.length) labels.push('As needed');
+  return labels;
 }

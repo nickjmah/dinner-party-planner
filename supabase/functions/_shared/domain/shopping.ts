@@ -12,7 +12,7 @@ const UNITS: Record<string, { dimension: Dimension; factor: number }> = {
 };
 
 export function ingredientDimension(unit: string, quantity: number | null): Dimension {
-  if (quantity == null) return 'unquantified';
+  if (quantity == null || (!unit && quantity === 0)) return 'unquantified';
   return UNITS[unit]?.dimension || 'count';
 }
 
@@ -40,8 +40,9 @@ function categoryFor(item: string): string {
   return 'Other';
 }
 
-function requirementsIncreased(previous: ShoppingItem | undefined, simple: number | null, requirements: QuantityComponent[]): boolean {
+function requirementsIncreased(previous: ShoppingItem | undefined, simple: number | null, requirements: QuantityComponent[], unquantifiedRequired: boolean): boolean {
   if (!previous) return false;
+  if (unquantifiedRequired && !previous.unquantified_required) return true;
   const priorMixed = Array.isArray(previous.component_requirements) && previous.component_requirements.length > 0;
   const nextMixed = requirements.length > 0;
   if (priorMixed !== nextMixed) return true;
@@ -70,6 +71,7 @@ export function buildShoppingItems(input: ShoppingBuildInput): ShoppingItem[] {
     const quantified = [...new Set(sources.filter((source) => source.dimension !== 'unquantified').map((source) => source.dimension))];
     const components = quantified.map((dimension) => displayComponent(item, dimension, sources.filter((source) => source.dimension === dimension).reduce((sum, source) => sum + source.baseQuantity, 0), sources.filter((source) => source.dimension === dimension).map((source) => source.unit)));
     const mixed = components.length > 1;
+    const unquantifiedRequired = sources.some((source) => source.dimension === 'unquantified');
     const key = `${item}|${mixed ? 'mixed' : components[0]?.dimension || 'unquantified'}`;
     const previous = existingByItem.get(item);
     const requirements = mixed ? components : [];
@@ -80,7 +82,7 @@ export function buildShoppingItems(input: ShoppingBuildInput): ShoppingItem[] {
       id: previous?.id || `shop_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`, dinner_id: input.dinnerId, owner_id: input.ownerId, key, item,
       quantity: simple, unit: mixed ? components.map((part) => `${part.quantity} ${part.unit}`).join(' + ') : components[0]?.unit || '',
       raw_sources: sources.map((source) => ({ ingredientId: source.ingredientId, recipeId: source.recipeId, recipeTitle: source.recipeTitle, rawText: source.rawText, scaledQuantity: source.quantity, unit: source.unit })),
-      category: previous?.category || categoryFor(item), purchased: Boolean(previous?.purchased) && !requirementsIncreased(previous, simple, requirements), assignee: previous?.assignee || '', notes: previous?.notes || '',
+      category: previous?.category || categoryFor(item), purchased: Boolean(previous?.purchased) && !requirementsIncreased(previous, simple, requirements, unquantifiedRequired), assignee: previous?.assignee || '', notes: previous?.notes || '', unquantified_required: unquantifiedRequired,
       covered_quantity: mixed ? 0 : input.tasks ? 0 : clamp(Number(previous?.covered_quantity || 0), 0, simple || 0),
       manual_covered_quantity: mixed ? 0 : clamp(Number(previous?.manual_covered_quantity || 0), 0, simple || 0),
       component_requirements: requirements, covered_components: coveredComponents, manual_covered_components: manualComponents,

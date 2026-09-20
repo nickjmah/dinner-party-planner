@@ -83,7 +83,7 @@ pnpm run build
 pnpm run test:e2e
 ```
 
-The deterministic suite contains 83 tests covering parsing, canonical ingredients, scaling, mixed units, provenance, translations, shopping progress, make-ahead reasoning, kitchen capacity, and timeline preservation. The Playwright suite is configured for desktop and mobile.
+The deterministic suite contains 87 tests covering parsing, canonical ingredients, scaling, mixed and as-needed requirements, provenance, translations, shopping progress, make-ahead reasoning, kitchen capacity, and timeline preservation. The Playwright suite is configured for desktop and mobile.
 
 ## GitHub Pages
 

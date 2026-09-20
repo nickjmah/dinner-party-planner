@@ -8,7 +8,7 @@ const build = (recipes: Recipe[], ingredients: Ingredient[], existing: ShoppingI
 
 describe('shopping measurement dimensions', () => {
   it.each([
-    ['cup', 1, 'volume'], ['lb', 1, 'weight'], ['each', 1, 'count'], ['', null, 'unquantified'],
+    ['cup', 1, 'volume'], ['lb', 1, 'weight'], ['each', 1, 'count'], ['', null, 'unquantified'], ['', 0, 'unquantified'],
   ])('classifies %s deterministically', (unit, quantity, dimension) => expect(ingredientDimension(unit, quantity)).toBe(dimension));
 });
 
@@ -33,6 +33,17 @@ describe('shopping consolidation', () => {
     expect(row.quantity).toBeNull(); expect(row.component_requirements.map((part) => part.unit)).toEqual(['each', 'oz']);
   });
   it('keeps raw publisher wording in source metadata', () => expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'salt', null, '', 'Kosher salt, to taste')])[0].raw_sources).toEqual([expect.objectContaining({ rawText: 'Kosher salt, to taste' })]));
+  it('combines measured butter with source-grounded as-needed pan greasing', () => {
+    const row = build([recipe('recipe_1'), recipe('recipe_2')], [
+      ingredient('ingredient_1', 'recipe_1', 'unsalted butter', 4, 'tbsp', '4 tablespoons unsalted butter'),
+      ingredient('ingredient_2', 'recipe_2', 'unsalted butter or nonstick spray for greasing the pan', null, '', 'Unsalted butter or nonstick spray, for greasing the pan'),
+    ])[0];
+    expect(row.item).toBe('unsalted butter');
+    expect(row.quantity).toBe(4);
+    expect(row.unit).toBe('tbsp');
+    expect(row.unquantified_required).toBe(true);
+    expect(row.raw_sources).toHaveLength(2);
+  });
   it('clears purchased status when a rebuilt requirement increases', () => {
     const first = build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 2, 'each')])[0];
     expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'egg', 3, 'each')], [{ ...first, purchased: true }])[0].purchased).toBe(false);

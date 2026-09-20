@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalIngredient, clamp, formatQuantity, parseIngredient, parseNumber, parseYieldServings, recipeScale, remainingComponents, remainingQuantity } from '../src/lib/quantity';
+import { canonicalIngredient, clamp, formatQuantity, parseIngredient, parseNumber, parseYieldServings, recipeScale, remainingComponents, remainingQuantity, shoppingQuantityLabels } from '../src/lib/quantity';
 import type { Recipe, ShoppingItem } from '../src/types';
 
 describe('source ingredient parsing', () => {
@@ -19,6 +19,7 @@ describe('deterministic canonical ingredients', () => {
     ['allioli', 'aioli'], ['cupaioli', 'aioli'], ['pimentón picante', 'hot smoked spanish paprika'],
     ['vegetable of other neutral oil', 'neutral oil'], ['Kosher salt', 'salt'], ['Coarse sea salt', 'salt'],
     ['ripe plum tomatoes', 'plum tomato'], ['plum tomatoes', 'plum tomato'], ['eggs', 'egg'], ['onions', 'onion'],
+    ['Unsalted butter or nonstick spray for greasing the pan', 'unsalted butter'],
   ])('normalizes %s to %s', (input, output) => expect(canonicalIngredient(input)).toBe(output));
   it('keeps distinct tomato varieties distinct', () => expect(canonicalIngredient('cherry tomatoes')).not.toBe(canonicalIngredient('plum tomatoes')));
 });
@@ -36,4 +37,5 @@ describe('scaling and progress', () => {
   });
   it('subtracts task and manual coverage from simple quantities', () => expect(remainingQuantity({ quantity: 10, covered_quantity: 3, manual_covered_quantity: 2, component_requirements: [] } as unknown as ShoppingItem)).toBe(5));
   it('never lets remaining quantities go negative', () => expect(remainingQuantity({ quantity: 4, covered_quantity: 9, manual_covered_quantity: 2, component_requirements: [] } as unknown as ShoppingItem)).toBe(0));
+  it('formats a measured requirement plus an as-needed requirement', () => expect(shoppingQuantityLabels({ quantity: 5, unit: 'tbsp', component_requirements: [], unquantified_required: true })).toEqual(['5 tbsp', 'As needed']));
 });

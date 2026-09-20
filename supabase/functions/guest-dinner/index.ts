@@ -19,7 +19,7 @@ Deno.serve(async (request) => {
       service.from('recipes').select('title,short_title,source_url,source_host,source_type,yield_text,yield_servings,target_servings,prep_minutes,cook_minutes,total_minutes,translated_title,translated_yield_text,translation_language,created_at,updated_at').eq('dinner_id', dinnerId).order('created_at'),
       service.from('ingredients').select('position,raw_text,translated_text,quantity,unit,item,notes').eq('dinner_id', dinnerId).order('position'),
       service.from('steps').select('position,section,raw_text,translated_section,translated_text').eq('dinner_id', dinnerId).order('position'),
-      service.from('shopping_items').select('item,quantity,unit,category,purchased,notes,covered_quantity,manual_covered_quantity,component_requirements,covered_components,manual_covered_components').eq('dinner_id', dinnerId).order('category').order('item'),
+      service.from('shopping_items').select('item,quantity,unit,category,purchased,notes,unquantified_required,covered_quantity,manual_covered_quantity,component_requirements,covered_components,manual_covered_components').eq('dinner_id', dinnerId).order('category').order('item'),
       service.from('tasks').select('title,source_step_ids,day_offset,start_time,duration_minutes,active_minutes,passive_minutes,resource,assignee,status,notes,timing_basis,storage_method,timing_note,freezer_suitable,sort_order,created_at,updated_at').eq('dinner_id', dinnerId).order('day_offset').order('sort_order'),
     ]);
     const failure = [dinner, recipes, ingredients, steps, shopping, tasks].find((result) => result.error)?.error;
@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
     const publicShopping = (shopping.data || []).map((item) => {
       const requirements = Array.isArray(item.component_requirements) ? item.component_requirements : [];
       const remainingComponents = requirements.map((part: { key: string; quantity: number; unit: string }) => ({ ...part, quantity: Math.max(0, Number(part.quantity || 0) - Number(item.covered_components?.[part.key] || 0) - Number(item.manual_covered_components?.[part.key] || 0)) }));
-      return { item: item.item, quantity: requirements.length ? null : item.quantity == null ? null : Math.max(0, Number(item.quantity) - Number(item.covered_quantity || 0) - Number(item.manual_covered_quantity || 0)), unit: item.unit, category: item.category, purchased: item.purchased, notes: item.notes, covered_quantity: 0, component_requirements: remainingComponents, covered_components: {} };
+      return { item: item.item, quantity: requirements.length ? null : item.quantity == null ? null : Math.max(0, Number(item.quantity) - Number(item.covered_quantity || 0) - Number(item.manual_covered_quantity || 0)), unit: item.unit, category: item.category, purchased: item.purchased, notes: item.notes, unquantified_required: item.unquantified_required, covered_quantity: 0, component_requirements: remainingComponents, covered_components: {} };
     });
     return json({ dinner: dinner.data, recipes: recipes.data, ingredients: ingredients.data, steps: steps.data, shopping: publicShopping, tasks: tasks.data });
   } catch (error) { return errorResponse(error); }
