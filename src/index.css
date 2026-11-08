@@ -50,3 +50,6 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 @media print { :root { color-scheme:light; }.print-actions { display:none!important; }.print-page { max-width:none;padding:0; }.print-break { break-before:page; }.print-recipe { break-before:page; } @page { margin:0.55in; } }
 .guest-list li span small,.guest-task small { display:block;margin-top:.3rem;color:#aaa69d;font-size:.7rem;line-height:1.35; }
 .print-shopping span small,.print-day span small { display:block;margin-top:3px;color:#666;font-size:10px; }
+
+.planned-menu-note { display: grid; padding: 0 1.25rem 1.25rem; gap: .4rem; }
+.planned-menu-note textarea { width: 100%; resize: vertical; min-height: 5rem; }

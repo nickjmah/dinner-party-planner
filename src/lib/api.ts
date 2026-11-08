@@ -67,10 +67,19 @@ export async function createPlannedMenu(dinnerId: string, guestCount: number, me
 
 export async function completePlannedRecipe(planned: Recipe, importedRecipeId: string): Promise<void> {
   if (planned.source_type !== 'planned') throw new Error('Only planned menu items can be completed this way.');
+  const plannedProvenance = planned.provenance && !Array.isArray(planned.provenance) && typeof planned.provenance === 'object' ? planned.provenance : {};
+  const { data: imported, error: readError } = await supabase.from('recipes').select('provenance').eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id).single();
+  if (readError || !imported) {
+    await supabase.from('recipes').delete().eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
+    await rebuildShoppingForDinner(planned.dinner_id);
+    throw new Error(readError?.message || 'Imported recipe not found.');
+  }
+  const importedProvenance = imported.provenance && !Array.isArray(imported.provenance) && typeof imported.provenance === 'object' ? imported.provenance : {};
   const { error: updateError } = await supabase.from('recipes').update({
     short_title: planned.short_title || planned.title,
     target_servings: planned.target_servings,
     created_at: planned.created_at,
+    provenance: { ...importedProvenance, planned_menu_notes: typeof plannedProvenance.menu_notes === 'string' ? plannedProvenance.menu_notes : '' },
   }).eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
   if (updateError) {
     await supabase.from('recipes').delete().eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
