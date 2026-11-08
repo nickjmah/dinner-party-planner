@@ -16,6 +16,7 @@ export function useUpdateDinnerRow(dinnerId: string) {
     mutationFn: async ({ table, id, patch }: { table: string; id: string; patch: Record<string, unknown> }) => {
       await updateRow(table, id, patch);
       if (table === 'recipes' && ('target_servings' in patch || 'yield_servings' in patch)) await rebuildShoppingForDinner(dinnerId);
+      if (table === 'dinners' && 'guest_count' in patch) await rebuildShoppingForDinner(dinnerId);
       if (table === 'tasks' && 'ingredient_progress' in patch) await rebuildShoppingForDinner(dinnerId);
     },
     onMutate: async ({ table, id, patch }) => {

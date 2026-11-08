@@ -53,3 +53,19 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 
 .planned-menu-note { display: grid; padding: 0 1.25rem 1.25rem; gap: .4rem; }
 .planned-menu-note textarea { width: 100%; resize: vertical; min-height: 5rem; }
+.invite-editor { max-width:1220px;display:grid;grid-template-columns:minmax(0,.9fr) minmax(360px,1.1fr);gap:1.2rem;align-items:start; }
+.invite-form,.invite-preview { padding:1.4rem;display:grid;gap:1rem; }
+.invite-form h2 { margin:0 0 .3rem;font-size:1.8rem; }
+.invite-paper { min-height:460px;padding:clamp(2rem,5vw,4.5rem);display:flex;flex-direction:column;justify-content:center;text-align:center;border:1px solid #d4c4a8;border-radius:4px;color:#28221a;background:radial-gradient(circle at 50% 15%,rgba(195,154,85,.18),transparent 34%),#f0e6d2;box-shadow:inset 0 0 0 7px #f7f0e3; }
+.invite-paper .eyebrow { color:#8b6230; }
+.invite-paper h2 { margin:.5rem 0 1.4rem;font-size:clamp(2.4rem,5vw,4.5rem); }
+.invite-date { display:grid;gap:.25rem;padding:1rem 0;border-top:1px solid #bcae94;border-bottom:1px solid #bcae94; }
+.invite-date strong { font-family:Georgia,serif;font-size:1.2rem; }
+.invite-cuisine { margin:1rem 0 0;text-transform:uppercase;letter-spacing:.12em;font-size:.72rem;font-weight:800;color:#775b38; }
+.invite-message { max-width:520px;margin:1.4rem auto 0;white-space:pre-wrap;line-height:1.65; }
+.invite-guest-note { max-width:520px;margin:1.2rem auto 0;padding:.7rem 1rem;border-radius:8px;background:rgba(139,98,48,.1);font-size:.78rem;white-space:pre-wrap; }
+.invite-actions { display:flex;gap:.7rem;justify-content:center; }
+.invite-preview>.small { margin:0;text-align:center;line-height:1.45; }
+.guest-invite-message { max-width:700px;margin:.6rem 0 1rem;color:#d5d0c6;white-space:pre-wrap;line-height:1.55; }
+.guest-invite-note { display:inline-block;margin:1rem 0 0;padding:.55rem .75rem;border:1px solid #66583f;border-radius:8px;color:#c9b99e;background:rgba(37,31,22,.7);font-size:.72rem;white-space:pre-wrap; }
+@media (max-width:900px) { .invite-editor { grid-template-columns:1fr; }.mobile-nav { grid-template-columns:repeat(6,1fr); } }

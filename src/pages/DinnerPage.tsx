@@ -3,7 +3,7 @@ import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } f
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Archive, BookOpen, CalendarClock, Check, ChefHat, ChevronDown, ChevronLeft, CircleGauge, ClipboardList, CookingPot, ExternalLink, FileDown, FileText, GripVertical, Menu, MoreHorizontal, Plus, Printer, Share2, ShoppingBasket, Trash2, Upload, Users, X } from 'lucide-react';
+import { Archive, BookOpen, CalendarClock, Check, ChefHat, ChevronDown, ChevronLeft, CircleGauge, ClipboardList, CookingPot, Copy, ExternalLink, FileDown, FileText, GripVertical, Mail, Menu, MoreHorizontal, Plus, Printer, Share2, ShoppingBasket, Trash2, Upload, Users, X } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { Button, Card, EmptyState, ErrorState, LoadingState, SaveState } from '../components/ui';
@@ -11,13 +11,14 @@ import { useDinner, useUpdateDinnerRow } from '../hooks/useDinner';
 import { completePlannedRecipe, createPlannedMenu, deleteRecipe, invokeOwnerFunction } from '../lib/api';
 import { choosePdfImportSource } from '../lib/import';
 import { isPlannedRecipe, plannedMenuSection } from '../lib/menu';
+import { invitationDate, invitationText, invitationTime, type InvitationDraft } from '../lib/invite';
 import { formatQuantity, recipeScale, shoppingQuantityLabels } from '../lib/quantity';
 import { moveTaskToDay, reflowDayTimes, sortTimeline, taskDayLabel } from '../lib/timeline';
-import type { DinnerDetail, Recipe, ShoppingItem, TimelineTask } from '../types';
+import type { Dinner, DinnerDetail, Recipe, ShoppingItem, TimelineTask } from '../types';
 
-type View = 'overview' | 'recipes' | 'shopping' | 'prep' | 'cooking';
+type View = 'overview' | 'invite' | 'recipes' | 'shopping' | 'prep' | 'cooking';
 const NAV: Array<{ id: View; label: string; icon: typeof BookOpen }> = [
-  { id: 'overview', label: 'Overview', icon: CircleGauge }, { id: 'recipes', label: 'Recipes', icon: BookOpen },
+  { id: 'overview', label: 'Overview', icon: CircleGauge }, { id: 'invite', label: 'Invite', icon: Mail }, { id: 'recipes', label: 'Recipes', icon: BookOpen },
   { id: 'shopping', label: 'Shopping', icon: ShoppingBasket }, { id: 'prep', label: 'Prep', icon: CalendarClock },
   { id: 'cooking', label: 'Cooking', icon: CookingPot },
 ];
@@ -50,6 +51,7 @@ export function DinnerPage() {
       <main className="planner-main">
         <header className="planner-header"><div><p className="eyebrow">{NAV.find((item) => item.id === view)?.label}</p><h1>{data.dinner.title}</h1></div><div className="header-actions"><SaveState pending={update.isPending} saved={update.isSuccess} />{view === 'recipes' && <Button onClick={() => setImportTarget('new')}><Plus size={18} />Add to menu</Button>}<Button variant="ghost" className="desktop-only" onClick={() => setShowShare(true)}><Share2 size={18} />Share</Button></div></header>
         {view === 'overview' && <Overview detail={data} />}
+        {view === 'invite' && <InviteEditor dinner={data.dinner} update={update.mutate} openShare={() => setShowShare(true)} />}
         {view === 'recipes' && <Recipes detail={data} update={update.mutate} refresh={() => detail.refetch()} fillRecipe={setImportTarget} />}
         {view === 'shopping' && <Shopping detail={data} update={update.mutate} />}
         {view === 'prep' && <Timeline detail={data} update={update.mutateAsync} refresh={() => detail.refetch()} />}
@@ -72,6 +74,15 @@ function Overview({ detail }: { detail: DinnerDetail }) {
 }
 
 function Metric({ value, label, note }: { value: number; label: string; note: string }) { return <Card className="metric"><strong>{value}</strong><div><span>{label}</span><small>{note}</small></div></Card>; }
+
+function InviteEditor({ dinner, update, openShare }: { dinner: Dinner; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void; openShare: () => void }) {
+  const [draft, setDraft] = useState<InvitationDraft>(() => ({ title: dinner.title, cuisine: dinner.cuisine, guest_count: dinner.guest_count, event_date: dinner.event_date, serve_time: dinner.serve_time, notes: dinner.notes, dietary_notes: dinner.dietary_notes }));
+  const [copied, setCopied] = useState(false);
+  function change<K extends keyof InvitationDraft>(field: K, value: InvitationDraft[K]) { setDraft((current) => ({ ...current, [field]: value })); }
+  function save<K extends keyof InvitationDraft>(field: K) { if (draft[field] !== dinner[field]) update({ table: 'dinners', id: dinner.id, patch: { [field]: draft[field] } }); }
+  async function copyInvite() { await navigator.clipboard.writeText(invitationText(draft)); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
+  return <div className="invite-editor"><Card className="invite-form"><p className="eyebrow">Invitation details</p><h2>Edit what guests will see</h2><label>Dinner name<input value={draft.title} onChange={(event) => change('title', event.target.value)} onBlur={() => save('title')} /></label><div className="form-row"><label>Cuisine<input value={draft.cuisine} onChange={(event) => change('cuisine', event.target.value)} onBlur={() => save('cuisine')} placeholder="Spanish" /></label><label>Guests<input type="number" min="1" max="200" value={draft.guest_count} onChange={(event) => change('guest_count', Number(event.target.value) || 1)} onBlur={() => save('guest_count')} /></label></div><div className="form-row"><label>Date<input type="date" value={draft.event_date} onChange={(event) => change('event_date', event.target.value)} onBlur={() => save('event_date')} /></label><label>Dinner begins<input type="time" value={draft.serve_time.slice(0, 5)} onChange={(event) => change('serve_time', event.target.value)} onBlur={() => save('serve_time')} /></label></div><label>Invitation message<textarea rows={5} value={draft.notes} onChange={(event) => change('notes', event.target.value)} onBlur={() => save('notes')} placeholder="Come ready to cook, eat, and linger at the table." /></label><label>Guest note<textarea rows={3} value={draft.dietary_notes} onChange={(event) => change('dietary_notes', event.target.value)} onBlur={() => save('dietary_notes')} placeholder="RSVP details, allergies, dress, or what to bring" /></label></Card><Card className="invite-preview"><div className="invite-paper"><p className="eyebrow">You’re invited</p><h2>{draft.title || 'Dinner night'}</h2><div className="invite-date"><strong>{invitationDate(draft.event_date)}</strong><span>{invitationTime(draft.serve_time)}</span></div>{draft.cuisine && <p className="invite-cuisine">{draft.cuisine} dinner · {draft.guest_count} guests</p>}{draft.notes && <p className="invite-message">{draft.notes}</p>}{draft.dietary_notes && <p className="invite-guest-note">{draft.dietary_notes}</p>}</div><div className="invite-actions"><Button variant="soft" onClick={copyInvite}><Copy size={17} />{copied ? 'Copied' : 'Copy invitation'}</Button><Button onClick={openShare}><Share2 size={17} />Guest link</Button></div><p className="small muted">The guest link opens the dinner’s read-only menu, shopping, and prep view after the guest enters its code.</p></Card></div>;
+}
 
 function Recipes({ detail, update, refresh, fillRecipe }: { detail: DinnerDetail; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void; refresh: () => void; fillRecipe: (recipe: Recipe) => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
