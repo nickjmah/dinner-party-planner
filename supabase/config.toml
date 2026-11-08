@@ -14,11 +14,14 @@ major_version = 17
 enabled = true
 site_url = "https://nickjmah.github.io/dinner-party-planner/"
 additional_redirect_urls = ["https://nickjmah.github.io/dinner-party-planner/**"]
-enable_signup = false
+enable_signup = true
 
 [storage]
 enabled = true
-file_size_limit = "15MiB"
+file_size_limit = "50MiB"
+
+[storage.vector]
+enabled = false
 
 [functions.guest-unlock]
 verify_jwt = false

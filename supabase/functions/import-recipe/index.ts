@@ -1,7 +1,7 @@
 import { parseIngredient, parseYieldServings } from '../_shared/domain/quantity.ts';
 import { errorResponse, handleOptions, json } from '../_shared/http.ts';
 import { assertSourceTrace, parseHtmlRecipe, parseMarkdownRecipe, parsePdfRecipe, type ParsedRecipe } from '../_shared/recipe-parser.ts';
-import { assertOwnsDinner, authenticatedOwner } from '../_shared/supabase.ts';
+import { assertCanEditDinner, authenticatedOwner } from '../_shared/supabase.ts';
 import { translateRecipe } from '../_shared/translate.ts';
 import { rebuildShopping } from '../_shared/rebuild-shopping.ts';
 
@@ -60,7 +60,7 @@ Deno.serve(async (request) => {
   try {
     const { user, client, service } = await authenticatedOwner(request);
     const body = await request.json(); const dinnerId = String(body.dinnerId || '');
-    await assertOwnsDinner(client, dinnerId);
+    const { owner_id: ownerId } = await assertCanEditDinner(client, dinnerId);
     let source: { recipe: ParsedRecipe; bytes: Uint8Array; finalUrl: string; contentType: string };
     let storagePath = '';
     if (body.storagePath) {
@@ -76,15 +76,15 @@ Deno.serve(async (request) => {
     const recipeId = newId('recipe');
     const servings = parseYieldServings(source.recipe.yieldText);
     const sourceUrl = storagePath ? '' : String(body.url || source.finalUrl);
-    const recipeRow = { id: recipeId, dinner_id: dinnerId, owner_id: user.id, title: source.recipe.title, short_title: '', source_url: sourceUrl, source_host: sourceUrl ? new URL(sourceUrl).hostname : 'Uploaded PDF', source_type: source.recipe.sourceType, yield_text: source.recipe.yieldText, yield_servings: servings, target_servings: null, prep_minutes: source.recipe.prepMinutes, cook_minutes: source.recipe.cookMinutes, total_minutes: source.recipe.totalMinutes, provenance: { rule: 'source-traced', fetch: storagePath ? 'private-storage' : 'server', parser: source.recipe.sourceType }, fetched_at: new Date().toISOString(), translated_title: translation?.title || '', translated_yield_text: translation?.yieldText || '', translation_language: translation?.sourceLanguage || '', translation_model: translation ? 'mymemory-free' : '' };
+    const recipeRow = { id: recipeId, dinner_id: dinnerId, owner_id: ownerId, title: source.recipe.title, short_title: '', source_url: sourceUrl, source_host: sourceUrl ? new URL(sourceUrl).hostname : 'Uploaded PDF', source_type: source.recipe.sourceType, yield_text: source.recipe.yieldText, yield_servings: servings, target_servings: null, prep_minutes: source.recipe.prepMinutes, cook_minutes: source.recipe.cookMinutes, total_minutes: source.recipe.totalMinutes, provenance: { rule: 'source-traced', fetch: storagePath ? 'private-storage' : 'server', parser: source.recipe.sourceType }, fetched_at: new Date().toISOString(), translated_title: translation?.title || '', translated_yield_text: translation?.yieldText || '', translation_language: translation?.sourceLanguage || '', translation_model: translation ? 'mymemory-free' : '' };
     const { error: recipeError } = await client.from('recipes').insert(recipeRow); if (recipeError) throw recipeError;
-    rollback = async () => { await service.from('recipes').delete().eq('id', recipeId).eq('owner_id', user.id); };
-    const ingredientRows = source.recipe.ingredients.map((rawText, position) => { const translatedText = translation?.ingredients[position]?.text || ''; const parsed = parseIngredient(translatedText || rawText); return { id: newId('ingredient'), recipe_id: recipeId, dinner_id: dinnerId, owner_id: user.id, position: position + 1, raw_text: rawText, translated_text: translatedText, quantity: parsed.quantity, unit: parsed.unit, item: parsed.item, notes: parsed.notes, provenance: { sourceIndex: position, trace: 'exact-source-line' } }; });
-    const stepRows = source.recipe.steps.map((step, position) => ({ id: newId('step'), recipe_id: recipeId, dinner_id: dinnerId, owner_id: user.id, position: position + 1, section: step.section, raw_text: step.text, translated_section: translation?.steps[position]?.section || '', translated_text: translation?.steps[position]?.text || '', provenance: { sourceIndex: position, trace: 'exact-source-line' } }));
+    rollback = async () => { await service.from('recipes').delete().eq('id', recipeId).eq('owner_id', ownerId); };
+    const ingredientRows = source.recipe.ingredients.map((rawText, position) => { const translatedText = translation?.ingredients[position]?.text || ''; const parsed = parseIngredient(translatedText || rawText); return { id: newId('ingredient'), recipe_id: recipeId, dinner_id: dinnerId, owner_id: ownerId, position: position + 1, raw_text: rawText, translated_text: translatedText, quantity: parsed.quantity, unit: parsed.unit, item: parsed.item, notes: parsed.notes, provenance: { sourceIndex: position, trace: 'exact-source-line' } }; });
+    const stepRows = source.recipe.steps.map((step, position) => ({ id: newId('step'), recipe_id: recipeId, dinner_id: dinnerId, owner_id: ownerId, position: position + 1, section: step.section, raw_text: step.text, translated_section: translation?.steps[position]?.section || '', translated_text: translation?.steps[position]?.text || '', provenance: { sourceIndex: position, trace: 'exact-source-line' } }));
     const { error: ingredientsError } = await client.from('ingredients').insert(ingredientRows); if (ingredientsError) throw ingredientsError;
     const { error: stepsError } = await client.from('steps').insert(stepRows); if (stepsError) throw stepsError;
-    const { error: snapshotError } = await client.from('recipe_source_snapshots').insert({ recipe_id: recipeId, legacy_recipe_id: recipeId, dinner_id: dinnerId, owner_id: user.id, source_url: sourceUrl, source_type: source.recipe.sourceType, fetched_at: new Date().toISOString(), content_sha256: await sha256(source.bytes), source_content: storagePath ? null : new TextDecoder().decode(source.bytes), storage_path: storagePath || null, metadata: { finalUrl: source.finalUrl, contentType: source.contentType, bytes: source.bytes.length } }); if (snapshotError) throw snapshotError;
-    const shoppingItems = await rebuildShopping(client, dinnerId, user.id);
+    const { error: snapshotError } = await client.from('recipe_source_snapshots').insert({ recipe_id: recipeId, legacy_recipe_id: recipeId, dinner_id: dinnerId, owner_id: ownerId, source_url: sourceUrl, source_type: source.recipe.sourceType, fetched_at: new Date().toISOString(), content_sha256: await sha256(source.bytes), source_content: storagePath ? null : new TextDecoder().decode(source.bytes), storage_path: storagePath || null, metadata: { finalUrl: source.finalUrl, contentType: source.contentType, bytes: source.bytes.length } }); if (snapshotError) throw snapshotError;
+    const shoppingItems = await rebuildShopping(client, dinnerId, ownerId);
     rollback = null;
     return json({ recipeId, title: translation?.title || source.recipe.title, ingredients: ingredientRows.length, steps: stepRows.length, shoppingItems, translated: Boolean(translation), sourceType: source.recipe.sourceType });
   } catch (error) {

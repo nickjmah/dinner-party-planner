@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
@@ -8,13 +9,14 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { format, parseISO } from 'date-fns';
 import { Button, Card, EmptyState, ErrorState, LoadingState, SaveState } from '../components/ui';
 import { useDinner, useUpdateDinnerRow } from '../hooks/useDinner';
-import { completePlannedRecipe, createPlannedMenu, deleteRecipe, invokeOwnerFunction } from '../lib/api';
+import { completePlannedRecipe, createDinnerEditorInvite, createPlannedMenu, deleteRecipe, invokeOwnerFunction, listDinnerEditors, revokeDinnerEditor, revokeDinnerEditorInvite } from '../lib/api';
 import { choosePdfImportSource } from '../lib/import';
 import { isPlannedRecipe, plannedMenuSection } from '../lib/menu';
 import { invitationDate, invitationText, invitationTime, type InvitationDraft } from '../lib/invite';
 import { formatQuantity, recipeScale, shoppingQuantityLabels } from '../lib/quantity';
 import { moveTaskToDay, reflowDayTimes, sortTimeline, taskDayLabel } from '../lib/timeline';
-import type { Dinner, DinnerDetail, Recipe, ShoppingItem, TimelineTask } from '../types';
+import { supabase } from '../lib/supabase';
+import type { Dinner, DinnerDetail, DinnerEditor, DinnerEditorInvite, Recipe, ShoppingItem, TimelineTask } from '../types';
 
 type View = 'overview' | 'invite' | 'recipes' | 'shopping' | 'prep' | 'cooking';
 const NAV: Array<{ id: View; label: string; icon: typeof BookOpen }> = [
@@ -32,11 +34,14 @@ export function DinnerPage() {
   const [railOpen, setRailOpen] = useState(true);
   const [importTarget, setImportTarget] = useState<Recipe | 'new' | null>(null);
   const [showShare, setShowShare] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState('');
   const view = (params.get('view') as View) || 'overview';
+  useEffect(() => { supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id || '')); }, []);
 
   if (detail.isLoading) return <LoadingState label="Preparing your dinner…" />;
   if (detail.error || !detail.data) return <ErrorState message={detail.error?.message || 'Dinner not found.'} retry={() => detail.refetch()} />;
   const data = detail.data;
+  const isOwner = currentUserId === data.dinner.owner_id;
   const setView = (next: View) => setParams(next === 'overview' ? {} : { view: next });
 
   return (
@@ -45,21 +50,21 @@ export function DinnerPage() {
         <div className="rail-brand"><Link to="/app"><ChefHat size={24} /><span>Service</span></Link><button aria-label="Collapse navigation" onClick={() => setRailOpen(false)}><ChevronLeft /></button></div>
         <div className="rail-dinner"><p className="eyebrow">{data.dinner.cuisine || 'Dinner party'}</p><strong>{data.dinner.title}</strong><span>{format(parseISO(`${data.dinner.event_date}T12:00:00`), 'MMM d')} · {data.dinner.guest_count} guests</span></div>
         <nav>{NAV.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>
-        <div className="rail-actions"><Button variant="soft" onClick={() => setShowShare(true)}><Share2 size={18} />Share night</Button><Button variant="ghost" onClick={() => navigate(`/app/dinners/${dinnerId}/print`)}><Printer size={18} />Print dinner</Button></div>
+        <div className="rail-actions">{isOwner && <Button variant="soft" onClick={() => setShowShare(true)}><Share2 size={18} />Share night</Button>}<Button variant="ghost" onClick={() => navigate(`/app/dinners/${dinnerId}/print`)}><Printer size={18} />Print dinner</Button></div>
       </aside>
       {!railOpen && <button className="rail-reopen" aria-label="Open navigation" onClick={() => setRailOpen(true)}><Menu /></button>}
       <main className="planner-main">
-        <header className="planner-header"><div><p className="eyebrow">{NAV.find((item) => item.id === view)?.label}</p><h1>{data.dinner.title}</h1></div><div className="header-actions"><SaveState pending={update.isPending} saved={update.isSuccess} />{view === 'recipes' && <Button onClick={() => setImportTarget('new')}><Plus size={18} />Add to menu</Button>}<Button variant="ghost" className="desktop-only" onClick={() => setShowShare(true)}><Share2 size={18} />Share</Button></div></header>
+        <header className="planner-header"><div><p className="eyebrow">{NAV.find((item) => item.id === view)?.label}</p><h1>{data.dinner.title}</h1></div><div className="header-actions"><SaveState pending={update.isPending} saved={update.isSuccess} />{view === 'recipes' && <Button onClick={() => setImportTarget('new')}><Plus size={18} />Add to menu</Button>}{isOwner && <Button variant="ghost" className="desktop-only" onClick={() => setShowShare(true)}><Share2 size={18} />Share</Button>}</div></header>
         {view === 'overview' && <Overview detail={data} />}
-        {view === 'invite' && <InviteEditor dinner={data.dinner} update={update.mutate} openShare={() => setShowShare(true)} />}
+        {view === 'invite' && <InviteEditor dinner={data.dinner} update={update.mutate} openShare={() => setShowShare(true)} isOwner={isOwner} />}
         {view === 'recipes' && <Recipes detail={data} update={update.mutate} refresh={() => detail.refetch()} fillRecipe={setImportTarget} />}
         {view === 'shopping' && <Shopping detail={data} update={update.mutate} />}
         {view === 'prep' && <Timeline detail={data} update={update.mutateAsync} refresh={() => detail.refetch()} />}
         {view === 'cooking' && <Cooking detail={data} update={update.mutate} />}
       </main>
       <nav className="mobile-nav">{NAV.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon /><span>{label}</span></button>)}</nav>
-      {importTarget && <ImportRecipe dinnerId={dinnerId} guestCount={data.dinner.guest_count} plannedRecipe={importTarget === 'new' ? null : importTarget} close={() => setImportTarget(null)} completed={() => { setImportTarget(null); detail.refetch(); }} />}
-      {showShare && <ShareDinner dinnerId={dinnerId} close={() => setShowShare(false)} />}
+      {importTarget && <ImportRecipe dinnerId={dinnerId} ownerId={data.dinner.owner_id} guestCount={data.dinner.guest_count} plannedRecipe={importTarget === 'new' ? null : importTarget} close={() => setImportTarget(null)} completed={() => { setImportTarget(null); detail.refetch(); }} />}
+      {showShare && isOwner && <ShareDinner dinnerId={dinnerId} close={() => setShowShare(false)} />}
     </div>
   );
 }
@@ -75,14 +80,28 @@ function Overview({ detail }: { detail: DinnerDetail }) {
 
 function Metric({ value, label, note }: { value: number; label: string; note: string }) { return <Card className="metric"><strong>{value}</strong><div><span>{label}</span><small>{note}</small></div></Card>; }
 
-function InviteEditor({ dinner, update, openShare }: { dinner: Dinner; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void; openShare: () => void }) {
+function InviteEditor({ dinner, update, openShare, isOwner }: { dinner: Dinner; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void; openShare: () => void; isOwner: boolean }) {
   const [draft, setDraft] = useState<InvitationDraft>(() => ({ title: dinner.title, cuisine: dinner.cuisine, guest_count: dinner.guest_count, event_date: dinner.event_date, serve_time: dinner.serve_time, notes: dinner.notes, dietary_notes: dinner.dietary_notes }));
   const [copied, setCopied] = useState(false);
   function change<K extends keyof InvitationDraft>(field: K, value: InvitationDraft[K]) { setDraft((current) => ({ ...current, [field]: value })); }
   function save<K extends keyof InvitationDraft>(field: K) { if (draft[field] !== dinner[field]) update({ table: 'dinners', id: dinner.id, patch: { [field]: draft[field] } }); }
   async function copyInvite() { await navigator.clipboard.writeText(invitationText(draft)); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
-  return <div className="invite-editor"><Card className="invite-form"><p className="eyebrow">Invitation details</p><h2>Edit what guests will see</h2><label>Dinner name<input value={draft.title} onChange={(event) => change('title', event.target.value)} onBlur={() => save('title')} /></label><div className="form-row"><label>Cuisine<input value={draft.cuisine} onChange={(event) => change('cuisine', event.target.value)} onBlur={() => save('cuisine')} placeholder="Spanish" /></label><label>Guests<input type="number" min="1" max="200" value={draft.guest_count} onChange={(event) => change('guest_count', Number(event.target.value) || 1)} onBlur={() => save('guest_count')} /></label></div><div className="form-row"><label>Date<input type="date" value={draft.event_date} onChange={(event) => change('event_date', event.target.value)} onBlur={() => save('event_date')} /></label><label>Dinner begins<input type="time" value={draft.serve_time.slice(0, 5)} onChange={(event) => change('serve_time', event.target.value)} onBlur={() => save('serve_time')} /></label></div><label>Invitation message<textarea rows={5} value={draft.notes} onChange={(event) => change('notes', event.target.value)} onBlur={() => save('notes')} placeholder="Come ready to cook, eat, and linger at the table." /></label><label>Guest note<textarea rows={3} value={draft.dietary_notes} onChange={(event) => change('dietary_notes', event.target.value)} onBlur={() => save('dietary_notes')} placeholder="RSVP details, allergies, dress, or what to bring" /></label></Card><Card className="invite-preview"><div className="invite-paper"><p className="eyebrow">You’re invited</p><h2>{draft.title || 'Dinner night'}</h2><div className="invite-date"><strong>{invitationDate(draft.event_date)}</strong><span>{invitationTime(draft.serve_time)}</span></div>{draft.cuisine && <p className="invite-cuisine">{draft.cuisine} dinner · {draft.guest_count} guests</p>}{draft.notes && <p className="invite-message">{draft.notes}</p>}{draft.dietary_notes && <p className="invite-guest-note">{draft.dietary_notes}</p>}</div><div className="invite-actions"><Button variant="soft" onClick={copyInvite}><Copy size={17} />{copied ? 'Copied' : 'Copy invitation'}</Button><Button onClick={openShare}><Share2 size={17} />Guest link</Button></div><p className="small muted">The guest link opens the dinner’s read-only menu, shopping, and prep view after the guest enters its code.</p></Card></div>;
+  return <div className="invite-page-stack"><EditorAccess dinnerId={dinner.id} isOwner={isOwner} /><div className="invite-editor"><Card className="invite-form"><p className="eyebrow">Guest invitation details</p><h2>Edit what guests will see</h2><label>Dinner name<input value={draft.title} onChange={(event) => change('title', event.target.value)} onBlur={() => save('title')} /></label><div className="form-row"><label>Cuisine<input value={draft.cuisine} onChange={(event) => change('cuisine', event.target.value)} onBlur={() => save('cuisine')} placeholder="Spanish" /></label><label>Guests<input type="number" min="1" max="200" value={draft.guest_count} onChange={(event) => change('guest_count', Number(event.target.value) || 1)} onBlur={() => save('guest_count')} /></label></div><div className="form-row"><label>Date<input type="date" value={draft.event_date} onChange={(event) => change('event_date', event.target.value)} onBlur={() => save('event_date')} /></label><label>Dinner begins<input type="time" value={draft.serve_time.slice(0, 5)} onChange={(event) => change('serve_time', event.target.value)} onBlur={() => save('serve_time')} /></label></div><label>Invitation message<textarea rows={5} value={draft.notes} onChange={(event) => change('notes', event.target.value)} onBlur={() => save('notes')} placeholder="Come ready to cook, eat, and linger at the table." /></label><label>Guest note<textarea rows={3} value={draft.dietary_notes} onChange={(event) => change('dietary_notes', event.target.value)} onBlur={() => save('dietary_notes')} placeholder="RSVP details, allergies, dress, or what to bring" /></label></Card><Card className="invite-preview"><div className="invite-paper"><p className="eyebrow">You’re invited</p><h2>{draft.title || 'Dinner night'}</h2><div className="invite-date"><strong>{invitationDate(draft.event_date)}</strong><span>{invitationTime(draft.serve_time)}</span></div>{draft.cuisine && <p className="invite-cuisine">{draft.cuisine} dinner · {draft.guest_count} guests</p>}{draft.notes && <p className="invite-message">{draft.notes}</p>}{draft.dietary_notes && <p className="invite-guest-note">{draft.dietary_notes}</p>}</div><div className="invite-actions"><Button variant="soft" onClick={copyInvite}><Copy size={17} />{copied ? 'Copied' : 'Copy invitation'}</Button>{isOwner && <Button onClick={openShare}><Share2 size={17} />Guest link</Button>}</div><p className="small muted">The guest link opens the dinner’s read-only menu, shopping, and prep view after the guest enters its code.</p></Card></div></div>;
 }
+
+function EditorAccess({ dinnerId, isOwner }: { dinnerId: string; isOwner: boolean }) {
+  const [link, setLink] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [copied, setCopied] = useState(false);
+  const access = useQuery({ queryKey: ['dinner-editors', dinnerId], queryFn: () => listDinnerEditors(dinnerId), enabled: isOwner });
+  const editors: DinnerEditor[] = access.data?.editors || []; const invites: DinnerEditorInvite[] = access.data?.invites || [];
+  async function create() { setBusy(true); setError(''); try { const invite = await createDinnerEditorInvite(dinnerId); setLink(invite.link); await access.refetch(); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not create editor invite.'); } setBusy(false); }
+  async function copy() { await navigator.clipboard.writeText(link); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
+  if (!isOwner) return <Card className="editor-access-card"><p className="eyebrow">Editor access</p><h2>Shared with you</h2><p className="muted">You can edit this dinner. Only its owner can invite or remove other editors.</p></Card>;
+  const activeInvites = invites.filter((invite) => !invite.accepted_at && !invite.revoked_at && new Date(invite.expires_at) > new Date());
+  const accessError = error || (access.error instanceof Error ? access.error.message : '');
+  return <Card className="editor-access-card"><div className="editor-access-head"><div><p className="eyebrow">Editor access</p><h2>Invite collaborators</h2><p>Each link can be used once, expires after seven days, and grants edit access only to this dinner.</p></div><Button onClick={create} disabled={busy}><UserPlusIcon />{busy ? 'Creating…' : 'Create editor link'}</Button></div>{link && <div className="editor-link-result"><input value={link} readOnly onFocus={(event) => event.currentTarget.select()} /><Button variant="soft" onClick={copy}><Copy size={17} />{copied ? 'Copied' : 'Copy link'}</Button></div>}{accessError && <p className="form-error">{accessError}</p>}<div className="editor-access-lists"><div><h3>Editors</h3>{editors.length ? editors.map((editor) => <div className="editor-access-row" key={editor.user_id}><span><strong>{editor.email || 'Editor account'}</strong><small>Joined {format(parseISO(editor.created_at), 'MMM d, yyyy')}</small></span><button onClick={async () => { if (confirm(`Remove ${editor.email || 'this editor'}?`)) { await revokeDinnerEditor(dinnerId, editor.user_id); await access.refetch(); } }}>Remove</button></div>) : <p className="small muted">No additional editors yet.</p>}</div><div><h3>Unused links</h3>{activeInvites.length ? activeInvites.map((invite) => <div className="editor-access-row" key={invite.id}><span><strong>Editor invite</strong><small>Expires {format(parseISO(invite.expires_at), 'MMM d, yyyy')}</small></span><button onClick={async () => { await revokeDinnerEditorInvite(invite.id); await access.refetch(); }}>Revoke</button></div>) : <p className="small muted">No active invite links.</p>}</div></div></Card>;
+}
+
+function UserPlusIcon() { return <Users size={17} />; }
 
 function Recipes({ detail, update, refresh, fillRecipe }: { detail: DinnerDetail; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void; refresh: () => void; fillRecipe: (recipe: Recipe) => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -154,7 +173,7 @@ function ManualRecipeEditor({ detail, recipe, close, completed }: { detail: Dinn
   return <div className="modal-backdrop" onMouseDown={close}><form className="modal import-modal" onSubmit={submit} onMouseDown={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={close}><X /></button><p className="eyebrow">Manual recipe</p><h2>Edit source lines</h2><label>Recipe title<input name="title" defaultValue={recipe.title} required /></label><div className="form-row"><label>Recipe makes<input name="yieldText" defaultValue={recipe.yield_text} /></label><label>Prep minutes<input name="prepMinutes" type="number" min="0" defaultValue={recipe.prep_minutes || ''} /></label></div><div className="form-row"><label>Cook minutes<input name="cookMinutes" type="number" min="0" defaultValue={recipe.cook_minutes || ''} /></label><label>Total minutes<input name="totalMinutes" type="number" min="0" defaultValue={recipe.total_minutes || ''} /></label></div><label>Ingredients<textarea name="ingredients" rows={8} defaultValue={ingredients} required /></label><label>Instructions<textarea name="steps" rows={8} defaultValue={steps} required /></label><p className="source-promise"><Archive />These lines are treated as your manual source. Automatic English translation remains one-to-one and number-preserving.</p>{error && <p className="form-error">{error}</p>}<div className="modal-actions"><Button type="button" variant="ghost" onClick={close}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save recipe'}</Button></div></form></div>;
 }
 
-function ImportRecipe({ dinnerId, guestCount, plannedRecipe, close, completed }: { dinnerId: string; guestCount: number; plannedRecipe: Recipe | null; close: () => void; completed: () => void }) {
+function ImportRecipe({ dinnerId, ownerId, guestCount, plannedRecipe, close, completed }: { dinnerId: string; ownerId: string; guestCount: number; plannedRecipe: Recipe | null; close: () => void; completed: () => void }) {
   const [mode, setMode] = useState<'plan' | 'url' | 'pdf' | 'manual'>(plannedRecipe ? 'url' : 'plan');
   const [menuText, setMenuText] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
@@ -167,7 +186,7 @@ function ImportRecipe({ dinnerId, guestCount, plannedRecipe, close, completed }:
     event.preventDefault(); setBusy(true); setError(''); const form = new FormData(event.currentTarget);
     try {
       if (mode === 'plan') {
-        await createPlannedMenu(dinnerId, guestCount, menuText);
+        await createPlannedMenu(dinnerId, ownerId, guestCount, menuText);
       } else if (mode === 'pdf') {
         const source = choosePdfImportSource(form.get('file'), form.get('url'));
         let result: { recipeId: string };

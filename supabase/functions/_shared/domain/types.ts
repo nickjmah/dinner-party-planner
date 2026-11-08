@@ -143,6 +143,26 @@ export interface DinnerDetail {
   stale_at?: string;
 }
 
+export interface DinnerEditor {
+  dinner_id: string;
+  user_id: string;
+  role: 'editor';
+  email: string;
+  invited_by: string;
+  created_at: string;
+}
+
+export interface DinnerEditorInvite {
+  id: string;
+  dinner_id: string;
+  owner_id: string;
+  expires_at: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
 export interface GuestDinner {
   dinner: Pick<Dinner, 'title' | 'cuisine' | 'guest_count' | 'event_date' | 'serve_time' | 'dietary_notes' | 'notes' | 'burners' | 'ovens' | 'fryers' | 'cooks' | 'timeline_days' | 'created_at' | 'updated_at'>;
   recipes: Array<Pick<Recipe, 'title' | 'short_title' | 'source_url' | 'source_host' | 'source_type' | 'yield_text' | 'yield_servings' | 'target_servings' | 'prep_minutes' | 'cook_minutes' | 'total_minutes' | 'translated_title' | 'translated_yield_text' | 'translation_language' | 'created_at' | 'updated_at'>>;

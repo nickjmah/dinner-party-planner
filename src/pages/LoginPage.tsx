@@ -40,7 +40,7 @@ export function LoginPage() {
           <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
           {error && <p className="form-error">{error}</p>}
           <Button type="submit" disabled={loading || !isSupabaseConfigured}>{loading ? 'Signing in…' : 'Sign in'}</Button>
-          <p className="small muted">This planner uses a single owner account. Public signup is disabled.</p>
+          <p className="small muted">New collaborators create an account from a dinner-specific editor invite.</p>
         </form>
       </section>
     </main>

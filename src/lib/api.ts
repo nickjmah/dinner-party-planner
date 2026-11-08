@@ -1,4 +1,4 @@
-import type { Dinner, DinnerDetail, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
+import type { Dinner, DinnerDetail, DinnerEditor, DinnerEditorInvite, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
 import { supabase } from './supabase';
 import { buildShoppingItems } from './shopping';
 import { parsePlannedMenu } from './menu';
@@ -45,7 +45,7 @@ export async function deleteRecipe(recipeId: string, dinnerId: string): Promise<
   await rebuildShoppingForDinner(dinnerId);
 }
 
-export async function createPlannedMenu(dinnerId: string, guestCount: number, menuText: string): Promise<number> {
+export async function createPlannedMenu(dinnerId: string, ownerId: string, guestCount: number, menuText: string): Promise<number> {
   const items = parsePlannedMenu(menuText);
   if (!items.length) throw new Error('Add at least one dish, with one dish per line.');
   if (items.length > 50) throw new Error('A menu can add up to 50 dishes at once.');
@@ -54,7 +54,7 @@ export async function createPlannedMenu(dinnerId: string, guestCount: number, me
   const rows = items.map((item) => ({
     id: `recipe_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`,
     dinner_id: dinnerId,
-    owner_id: user.id,
+    owner_id: ownerId,
     title: item.title,
     source_type: 'planned',
     target_servings: guestCount,
@@ -96,12 +96,42 @@ export async function completePlannedRecipe(planned: Recipe, importedRecipeId: s
 
 export async function rebuildShoppingForDinner(dinnerId: string): Promise<void> {
   const detail = await getDinnerDetail(dinnerId);
-  const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error('Sign in again.');
-  const rows = buildShoppingItems({ dinnerId, ownerId: user.id, guestCount: detail.dinner.guest_count, recipes: detail.recipes, ingredients: detail.ingredients, existing: detail.shopping, tasks: detail.tasks });
+  const rows = buildShoppingItems({ dinnerId, ownerId: detail.dinner.owner_id, guestCount: detail.dinner.guest_count, recipes: detail.recipes, ingredients: detail.ingredients, existing: detail.shopping, tasks: detail.tasks });
   const keep = new Set(rows.map((row) => row.id));
   const obsolete = detail.shopping.filter((row) => !keep.has(row.id)).map((row) => row.id);
   if (obsolete.length) { const { error } = await supabase.from('shopping_items').delete().in('id', obsolete); fail(error); }
   if (rows.length) { const { error } = await supabase.from('shopping_items').upsert(rows as never); fail(error); }
+}
+
+export async function listDinnerEditors(dinnerId: string): Promise<{ editors: DinnerEditor[]; invites: DinnerEditorInvite[] }> {
+  const [editors, invites] = await Promise.all([
+    supabase.from('dinner_members').select('*').eq('dinner_id', dinnerId).order('created_at'),
+    supabase.from('dinner_editor_invites').select('*').eq('dinner_id', dinnerId).order('created_at', { ascending: false }),
+  ]);
+  fail(editors.error); fail(invites.error);
+  return { editors: (editors.data || []) as DinnerEditor[], invites: (invites.data || []) as DinnerEditorInvite[] };
+}
+
+export async function createDinnerEditorInvite(dinnerId: string, expiresDays = 7): Promise<{ inviteId: string; token: string; expiresAt: string; link: string }> {
+  const { data, error } = await supabase.rpc('create_dinner_editor_invite', { p_dinner_id: dinnerId, p_expires_days: expiresDays });
+  fail(error);
+  const row = data?.[0]; if (!row) throw new Error('Editor invite was not created.');
+  return { inviteId: row.invite_id, token: row.invite_token, expiresAt: row.expires_at, link: `${location.origin}${location.pathname}#/join/${row.invite_token}` };
+}
+
+export async function acceptDinnerEditorInvite(token: string): Promise<string> {
+  const { data, error } = await supabase.rpc('accept_dinner_editor_invite', { p_token: token });
+  fail(error);
+  const dinnerId = data?.[0]?.dinner_id; if (!dinnerId) throw new Error('Editor invite could not be accepted.');
+  return dinnerId;
+}
+
+export async function revokeDinnerEditor(dinnerId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('revoke_dinner_editor', { p_dinner_id: dinnerId, p_user_id: userId }); fail(error);
+}
+
+export async function revokeDinnerEditorInvite(inviteId: string): Promise<void> {
+  const { error } = await supabase.rpc('revoke_dinner_editor_invite', { p_invite_id: inviteId }); fail(error);
 }
 
 export async function invokeOwnerFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {

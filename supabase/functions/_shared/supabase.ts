@@ -20,3 +20,9 @@ export async function assertOwnsDinner(client: SupabaseClient, dinnerId: string)
   if (error || !data) throw new Error('Dinner not found.');
 }
 
+export async function assertCanEditDinner(client: SupabaseClient, dinnerId: string): Promise<{ owner_id: string }> {
+  const { data, error } = await client.from('dinners').select('owner_id').eq('id', dinnerId).single();
+  if (error || !data) throw new Error('Dinner not found or you do not have editor access.');
+  return data as { owner_id: string };
+}
+

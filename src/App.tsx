@@ -7,6 +7,8 @@ import { DinnersPage } from './pages/DinnersPage';
 import { DinnerPage } from './pages/DinnerPage';
 import { GuestPage } from './pages/GuestPage';
 import { PrintDinnerPage, PrintRecipePage } from './pages/PrintPages';
+import { EditorInvitePage } from './pages/EditorInvitePage';
+import { pendingEditorInvite } from './lib/editor-invite';
 
 function OwnerRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
   return session ? children : <Navigate to="/login" replace />;
@@ -22,16 +24,18 @@ export default function App() {
   }, []);
 
   if (session === undefined) return <div className="app-loading"><span className="spinner" />Setting the table…</div>;
+  const pendingInvite = session ? pendingEditorInvite() : '';
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/app" replace /> : <LoginPage />} />
+      <Route path="/login" element={session ? <Navigate to={pendingInvite ? `/join/${pendingInvite}` : '/app'} replace /> : <LoginPage />} />
       <Route path="/app" element={<OwnerRoute session={session}><DinnersPage /></OwnerRoute>} />
       <Route path="/app/dinners/:dinnerId" element={<OwnerRoute session={session}><DinnerPage /></OwnerRoute>} />
       <Route path="/app/dinners/:dinnerId/print" element={<OwnerRoute session={session}><PrintDinnerPage /></OwnerRoute>} />
       <Route path="/app/dinners/:dinnerId/recipes/:recipeId/print" element={<OwnerRoute session={session}><PrintRecipePage /></OwnerRoute>} />
       <Route path="/d/:shareId" element={<GuestPage />} />
-      <Route path="*" element={<Navigate to={session ? '/app' : '/login'} replace />} />
+      <Route path="/join/:token" element={<EditorInvitePage session={session} />} />
+      <Route path="*" element={<Navigate to={pendingInvite ? `/join/${pendingInvite}` : session ? '/app' : '/login'} replace />} />
     </Routes>
   );
 }
