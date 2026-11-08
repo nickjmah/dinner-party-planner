@@ -1,6 +1,7 @@
 import type { Dinner, DinnerDetail, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
 import { supabase } from './supabase';
 import { buildShoppingItems } from './shopping';
+import { parsePlannedMenu } from './menu';
 
 function fail(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
@@ -42,6 +43,46 @@ export async function deleteRecipe(recipeId: string, dinnerId: string): Promise<
   const { error } = await supabase.from('recipes').delete().eq('id', recipeId);
   fail(error);
   await rebuildShoppingForDinner(dinnerId);
+}
+
+export async function createPlannedMenu(dinnerId: string, guestCount: number, menuText: string): Promise<number> {
+  const items = parsePlannedMenu(menuText);
+  if (!items.length) throw new Error('Add at least one dish, with one dish per line.');
+  if (items.length > 50) throw new Error('A menu can add up to 50 dishes at once.');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in again.');
+  const rows = items.map((item) => ({
+    id: `recipe_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`,
+    dinner_id: dinnerId,
+    owner_id: user.id,
+    title: item.title,
+    source_type: 'planned',
+    target_servings: guestCount,
+    provenance: { rule: 'menu-only', status: 'recipe-needed', section: item.section },
+  }));
+  const { error } = await supabase.from('recipes').insert(rows as never);
+  fail(error);
+  return rows.length;
+}
+
+export async function completePlannedRecipe(planned: Recipe, importedRecipeId: string): Promise<void> {
+  if (planned.source_type !== 'planned') throw new Error('Only planned menu items can be completed this way.');
+  const { error: updateError } = await supabase.from('recipes').update({
+    short_title: planned.short_title || planned.title,
+    target_servings: planned.target_servings,
+    created_at: planned.created_at,
+  }).eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
+  if (updateError) {
+    await supabase.from('recipes').delete().eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
+    throw new Error(updateError.message);
+  }
+  const { error: deleteError } = await supabase.from('recipes').delete().eq('id', planned.id).eq('source_type', 'planned');
+  if (deleteError) {
+    await supabase.from('recipes').delete().eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
+    await rebuildShoppingForDinner(planned.dinner_id);
+    throw new Error(deleteError.message);
+  }
+  await rebuildShoppingForDinner(planned.dinner_id);
 }
 
 export async function rebuildShoppingForDinner(dinnerId: string): Promise<void> {
