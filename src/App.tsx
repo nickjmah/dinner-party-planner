@@ -9,6 +9,7 @@ import { GuestPage } from './pages/GuestPage';
 import { PrintDinnerPage, PrintRecipePage } from './pages/PrintPages';
 import { EditorInvitePage } from './pages/EditorInvitePage';
 import { pendingEditorInvite } from './lib/editor-invite';
+import { AccessLinkPage } from './pages/AccessLinkPage';
 
 function OwnerRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
   return session ? children : <Navigate to="/login" replace />;
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/app/dinners/:dinnerId/recipes/:recipeId/print" element={<OwnerRoute session={session}><PrintRecipePage /></OwnerRoute>} />
       <Route path="/d/:shareId" element={<GuestPage />} />
       <Route path="/join/:token" element={<EditorInvitePage session={session} />} />
+      <Route path="/access/:token" element={<AccessLinkPage />} />
       <Route path="*" element={<Navigate to={pendingInvite ? `/join/${pendingInvite}` : session ? '/app' : '/login'} replace />} />
     </Routes>
   );

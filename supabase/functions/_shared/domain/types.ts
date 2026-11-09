@@ -149,6 +149,8 @@ export interface DinnerEditor {
   role: 'editor';
   email: string;
   invited_by: string;
+  expires_at: string | null;
+  access_link_id: string | null;
   created_at: string;
 }
 
@@ -159,6 +161,15 @@ export interface DinnerEditorInvite {
   expires_at: string;
   accepted_by: string | null;
   accepted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface DinnerAccessLink {
+  id: string;
+  dinner_id: string;
+  owner_id: string;
+  expires_at: string;
   revoked_at: string | null;
   created_at: string;
 }

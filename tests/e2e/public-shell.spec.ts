@@ -15,6 +15,13 @@ test('editor invite offers sign-in and invite-scoped account creation', async ({
   await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
 });
 
+test('30-day editor link offers no-login access', async ({ page }) => {
+  await page.goto('#/access/example-access-token');
+  await expect(page.getByRole('heading', { name: 'Edit without an account' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open dinner editor' })).toBeVisible();
+  await expect(page.getByText('No email or password is required.')).toBeVisible();
+});
+
 test('guest route prompts for the scoped dinner code', async ({ page }) => {
   await page.goto('#/d/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   await expect(page.getByRole('heading', { name: 'Open the dinner plan' })).toBeVisible();

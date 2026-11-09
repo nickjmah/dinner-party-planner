@@ -74,8 +74,10 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 .editor-access-head { display:flex;align-items:center;justify-content:space-between;gap:1rem; }
 .editor-access-head h2 { margin:0 0 .35rem; }
 .editor-access-head p:last-child { margin:0;color:var(--muted);font-size:.78rem; }
+.editor-access-actions { display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:flex-end; }
 .editor-link-result { margin-top:1rem;display:grid;grid-template-columns:1fr auto;gap:.7rem; }
-.editor-access-lists { margin-top:1.2rem;display:grid;grid-template-columns:1fr 1fr;gap:1.2rem; }
+.editor-link-result label>span { display:block;margin-bottom:.3rem;color:var(--brass);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em; }
+.editor-access-lists { margin-top:1.2rem;display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem; }
 .editor-access-lists h3 { margin:0 0 .55rem;font-size:1rem; }
 .editor-access-row { min-height:58px;padding:.6rem 0;display:flex;align-items:center;justify-content:space-between;gap:.8rem;border-top:1px solid #46443b; }
 .editor-access-row strong,.editor-access-row small { display:block; }
@@ -84,4 +86,5 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 .editor-invite-accept { width:min(100%,460px);padding:2rem;display:grid;gap:1rem;border:1px solid #4e4a40;border-radius:20px;background:#242420;box-shadow:0 28px 80px #000; }
 .editor-invite-accept h1 { margin:.2rem 0;font-size:2.5rem; }
 .editor-invite-accept p:not(.eyebrow):not(.form-error) { color:#aaa69c;line-height:1.5; }
-@media (max-width:700px) { .editor-access-head { align-items:stretch;flex-direction:column; }.editor-access-lists { grid-template-columns:1fr; }.editor-link-result { grid-template-columns:1fr; } }
+@media (max-width:900px) { .editor-access-lists { grid-template-columns:1fr; } }
+@media (max-width:700px) { .editor-access-head { align-items:stretch;flex-direction:column; }.editor-access-actions { justify-content:stretch; }.editor-access-actions .button { flex:1; }.editor-link-result { grid-template-columns:1fr; } }

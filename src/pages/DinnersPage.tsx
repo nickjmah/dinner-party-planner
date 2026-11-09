@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, ChefHat, LogOut, Plus, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -11,6 +11,8 @@ export function DinnersPage() {
   const dinners = useQuery({ queryKey: ['dinners'], queryFn: listDinners });
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [anonymous, setAnonymous] = useState(false);
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setAnonymous(Boolean(data.user?.is_anonymous))); }, []);
   const createDinner = useMutation({
     mutationFn: async (form: FormData) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -39,7 +41,7 @@ export function DinnersPage() {
         <Button variant="ghost" onClick={() => supabase.auth.signOut()}><LogOut size={18} />Sign out</Button>
       </header>
       <main className="dinners-main">
-        <div className="page-heading"><div><p className="eyebrow">Your table</p><h1>Dinner nights</h1><p>Every menu, source, shop, and prep plan in one place.</p></div><Button onClick={() => setShowForm(true)}><Plus size={18} />New dinner</Button></div>
+        <div className="page-heading"><div><p className="eyebrow">Your table</p><h1>Dinner nights</h1><p>{anonymous ? 'Dinners shared with this browser for a limited time.' : 'Every menu, source, shop, and prep plan in one place.'}</p></div>{!anonymous && <Button onClick={() => setShowForm(true)}><Plus size={18} />New dinner</Button>}</div>
         {dinners.isLoading && <LoadingState label="Loading dinner nights…" />}
         {dinners.error && <ErrorState message={dinners.error.message} retry={() => dinners.refetch()} />}
         {dinners.data?.length === 0 && <EmptyState icon={<CalendarDays />} title="Plan the first night">Choose a date and cuisine. Recipes can come next.</EmptyState>}

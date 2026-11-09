@@ -15,6 +15,7 @@ enabled = true
 site_url = "https://nickjmah.github.io/dinner-party-planner/"
 additional_redirect_urls = ["https://nickjmah.github.io/dinner-party-planner/**"]
 enable_signup = true
+enable_anonymous_sign_ins = true
 
 [storage]
 enabled = true

@@ -1,4 +1,4 @@
-import type { Dinner, DinnerDetail, DinnerEditor, DinnerEditorInvite, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
+import type { Dinner, DinnerAccessLink, DinnerDetail, DinnerEditor, DinnerEditorInvite, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
 import { supabase } from './supabase';
 import { buildShoppingItems } from './shopping';
 import { parsePlannedMenu } from './menu';
@@ -103,13 +103,14 @@ export async function rebuildShoppingForDinner(dinnerId: string): Promise<void> 
   if (rows.length) { const { error } = await supabase.from('shopping_items').upsert(rows as never); fail(error); }
 }
 
-export async function listDinnerEditors(dinnerId: string): Promise<{ editors: DinnerEditor[]; invites: DinnerEditorInvite[] }> {
-  const [editors, invites] = await Promise.all([
+export async function listDinnerEditors(dinnerId: string): Promise<{ editors: DinnerEditor[]; invites: DinnerEditorInvite[]; accessLinks: DinnerAccessLink[] }> {
+  const [editors, invites, accessLinks] = await Promise.all([
     supabase.from('dinner_members').select('*').eq('dinner_id', dinnerId).order('created_at'),
     supabase.from('dinner_editor_invites').select('*').eq('dinner_id', dinnerId).order('created_at', { ascending: false }),
+    supabase.from('dinner_access_links').select('*').eq('dinner_id', dinnerId).order('created_at', { ascending: false }),
   ]);
-  fail(editors.error); fail(invites.error);
-  return { editors: (editors.data || []) as DinnerEditor[], invites: (invites.data || []) as DinnerEditorInvite[] };
+  fail(editors.error); fail(invites.error); fail(accessLinks.error);
+  return { editors: (editors.data || []) as DinnerEditor[], invites: (invites.data || []) as DinnerEditorInvite[], accessLinks: (accessLinks.data || []) as DinnerAccessLink[] };
 }
 
 export async function createDinnerEditorInvite(dinnerId: string, expiresDays = 7): Promise<{ inviteId: string; token: string; expiresAt: string; link: string }> {
@@ -132,6 +133,22 @@ export async function revokeDinnerEditor(dinnerId: string, userId: string): Prom
 
 export async function revokeDinnerEditorInvite(inviteId: string): Promise<void> {
   const { error } = await supabase.rpc('revoke_dinner_editor_invite', { p_invite_id: inviteId }); fail(error);
+}
+
+export async function createDinnerAccessLink(dinnerId: string): Promise<{ accessLinkId: string; link: string; expiresAt: string }> {
+  const { data, error } = await supabase.rpc('create_dinner_access_link', { p_dinner_id: dinnerId }); fail(error);
+  const row = data?.[0]; if (!row) throw new Error('30-day access link was not created.');
+  return { accessLinkId: row.access_link_id, expiresAt: row.expires_at, link: `${location.origin}${location.pathname}#/access/${row.access_token}` };
+}
+
+export async function redeemDinnerAccessLink(token: string): Promise<string> {
+  const { data, error } = await supabase.rpc('redeem_dinner_access_link', { p_token: token }); fail(error);
+  const dinnerId = data?.[0]?.dinner_id; if (!dinnerId) throw new Error('30-day access could not be opened.');
+  return dinnerId;
+}
+
+export async function revokeDinnerAccessLink(accessLinkId: string): Promise<void> {
+  const { error } = await supabase.rpc('revoke_dinner_access_link', { p_access_link_id: accessLinkId }); fail(error);
 }
 
 export async function invokeOwnerFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
