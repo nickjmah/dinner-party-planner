@@ -23,7 +23,8 @@ export function GuestPage() {
     setUnlocking(false);
   }
 
-  if (!token || dinner.error) return <main className="guest-unlock"><div className="brand-mark"><ChefHat /><span>Service</span></div><form onSubmit={unlock}><div className="login-icon"><KeyRound /></div><p className="eyebrow">You’re invited</p><h1>Open the dinner plan</h1><p>Enter the eight-character code your host shared with you.</p><label>Dinner code<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={8} autoCapitalize="characters" autoFocus required /></label>{unlockError && <p className="form-error">{unlockError}</p>}<Button type="submit" disabled={unlocking || code.length !== 8}>{unlocking ? 'Checking…' : 'Open dinner'}</Button></form></main>;
+  const accessError = unlockError || (dinner.error instanceof Error ? dinner.error.message : '');
+  if (!token || dinner.error) return <main className="guest-unlock"><div className="brand-mark"><ChefHat /><span>Service</span></div><form onSubmit={unlock}><div className="login-icon"><KeyRound /></div><p className="eyebrow">You’re invited</p><h1>Open the dinner plan</h1><p>Enter the eight-character code your host shared with you.</p><label>Dinner code<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={8} autoCapitalize="characters" autoFocus required /></label>{accessError && <p className="form-error">{accessError}</p>}<Button type="submit" disabled={unlocking || code.length !== 8}>{unlocking ? 'Checking…' : 'Open dinner'}</Button></form></main>;
   if (dinner.isLoading || !dinner.data) return <LoadingState label="Opening the dinner plan…" />;
   const data = dinner.data;
   const remaining = data.shopping.filter((item) => !item.purchased);

@@ -130,7 +130,7 @@ begin
   if v_invite.owner_id = v_user then raise exception 'You already own this dinner'; end if;
   insert into public.dinner_members (dinner_id, user_id, role, email, invited_by)
   values (v_invite.dinner_id, v_user, 'editor', v_email, v_invite.owner_id)
-  on conflict (dinner_id, user_id) do update set role = 'editor', email = excluded.email;
+  on conflict on constraint dinner_members_pkey do update set role = 'editor', email = excluded.email;
   update public.dinner_editor_invites set accepted_by = v_user, accepted_at = timezone('utc', now()) where id = v_invite.id;
   return query select v_invite.dinner_id;
 end;

@@ -11,8 +11,9 @@ Deno.serve(async (request) => {
     const claims = await verifyGuestToken(token);
     if (claims.shareId !== shareId) throw new Error('This guest token belongs to another dinner.');
     const service = serviceClient();
-    const { data: share } = await service.from('dinner_shares').select('dinner_id,share_version,enabled').eq('share_id', shareId).single();
-    if (!share || !share.enabled || share.dinner_id !== claims.dinnerId || share.share_version !== claims.version) throw new Error('This guest link has been revoked.');
+    const { data: share, error: shareError } = await service.from('dinner_shares').select('dinner_id,share_version,enabled').eq('share_id', shareId).single();
+    if (shareError) throw new Error(shareError.message);
+    if (!share || !share.enabled || share.dinner_id !== claims.dinnerId || Number(share.share_version) !== Number(claims.version)) throw new Error('This guest link has been revoked.');
     const dinnerId = claims.dinnerId;
     const [dinner, recipes, ingredients, steps, shopping, tasks] = await Promise.all([
       service.from('dinners').select('title,cuisine,guest_count,event_date,serve_time,dietary_notes,notes,burners,ovens,fryers,cooks,timeline_days,created_at,updated_at').eq('id', dinnerId).single(),

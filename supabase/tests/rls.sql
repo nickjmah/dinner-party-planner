@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 
 select has_table('public', 'dinners', 'dinners table exists');
 select has_table('public', 'dinner_shares', 'dinner shares table exists');
@@ -19,6 +19,8 @@ select policies_are('public', 'tasks', array['dinner editors manage tasks'], 'ed
 select policies_are('public', 'dinner_members', array['owners read dinner members'], 'membership rows are visible only to owner or member');
 select policies_are('public', 'dinner_editor_invites', array['owners read editor invites'], 'editor invite rows are owner-only');
 select table_privs_are('public', 'dinners', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated owners can use dinners under RLS');
+select ok(has_table_privilege('service_role', 'public.dinner_shares', 'SELECT'), 'guest Edge Function can read dinner shares with the private service role');
+select ok(has_table_privilege('service_role', 'public.dinners', 'SELECT'), 'guest Edge Function can read sanitized dinner data with the private service role');
 select table_privs_are('public', 'guest_unlock_attempts', 'authenticated', array[]::text[], 'authenticated clients cannot access guest rate-limit rows');
 select is_empty($$select grantee from information_schema.routine_privileges where routine_schema='public' and routine_name='verify_guest_code' and grantee in ('anon','authenticated','PUBLIC') and privilege_type='EXECUTE'$$, 'guest code verifier is service-role only');
 

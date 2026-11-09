@@ -149,7 +149,16 @@ export async function unlockGuestDinner(shareId: string, code: string): Promise<
 export async function getGuestDinner(shareId: string, token?: string): Promise<GuestDinner> {
   const guestToken = token || sessionStorage.getItem(`dinner-guest:${shareId}`) || '';
   const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/guest-dinner?shareId=${encodeURIComponent(shareId)}`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${guestToken}` } });
-  if (!response.ok) throw new Error(response.status === 401 ? 'Enter this dinner’s access code.' : 'Unable to load this dinner.');
-  return response.json() as Promise<GuestDinner>;
+  const controller = new AbortController(); const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${guestToken}` }, signal: controller.signal });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error || (response.status === 401 ? 'Enter this dinner’s access code.' : 'Unable to load this dinner.'));
+    }
+    return response.json() as Promise<GuestDinner>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('The dinner took too long to load. Please try again.');
+    throw error;
+  } finally { window.clearTimeout(timeout); }
 }
