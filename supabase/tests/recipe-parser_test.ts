@@ -29,3 +29,13 @@ Deno.test('Multiple article components cannot become an incomplete recipe', () =
   try { parseHtmlRecipe('<div class="entry-content"><p>2 cups flour<br>1 tsp salt</p><ol><li>Mix.</li><li>Rest.</li></ol><p>3 eggs<br>2 cups milk</p></div>'); } catch { rejected = true; }
   check(rejected, 'Multiple components need explicit selection, not the first ingredient list');
 });
+
+Deno.test('A selected article dish excludes other dishes and retains garnish', () => {
+  const html = '<h1>Salad course</h1><div class="entry-content"><p>First salad</p><p>2 carrots<br>1 tsp oil</p><ol><li>Slice.</li><li>Toss.</li></ol><p>Total cooking time: 10 minutes</p><p>Second salad</p><p>3 radishes<br>2 oranges</p><p>garnish:<br>1 tsp mint<br>salt</p><ol><li>Chop.</li><li>Mix.</li></ol><p>Total cooking time: 5 minutes</p></div>';
+  let rejected = false; try { parseHtmlRecipe(html); } catch { rejected = true; }
+  check(rejected, 'A multi-dish page needs selection');
+  const recipe = parseHtmlRecipe(html, 'Imported recipe', 'Second salad');
+  check(recipe.ingredients.length === 4 && !recipe.ingredients.some((line) => line.includes('carrot')), 'Wrong dish or missing garnish');
+  check(recipe.steps.length === 2 && recipe.title === 'Second salad', 'Wrong method');
+  assertSourceTrace(recipe);
+});

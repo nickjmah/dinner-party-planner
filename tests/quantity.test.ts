@@ -3,6 +3,8 @@ import { canonicalIngredient, clamp, formatQuantity, parseIngredient, parseNumbe
 import type { Recipe, ShoppingItem } from '../src/types';
 
 describe('source ingredient parsing', () => {
+  it('parses a plain fraction before the integer prefix', () => expect(parseIngredient('1/4 cup butter')).toMatchObject({ quantity: .25, unit: 'cup', item: 'butter' }));
+  it('keeps counted eggs as an ingredient instead of consuming them as a unit', () => expect(parseIngredient('9 eggs')).toMatchObject({ quantity: 9, unit: 'each', item: 'egg' }));
   it('parses mixed fractions', () => expect(parseIngredient('1 1/2 lb chicken thighs, sliced')).toMatchObject({ quantity: 1.5, unit: 'lb', item: 'chicken thighs' }));
   it('parses unicode fractions', () => expect(parseIngredient('2½ cups jasmine rice')).toMatchObject({ quantity: 2.5, unit: 'cup', item: 'jasmine rice' }));
   it('uses the upper end of a range', () => expect(parseIngredient('2-3 onions, sliced')).toMatchObject({ quantity: 3, unit: 'each', item: 'onion' }));

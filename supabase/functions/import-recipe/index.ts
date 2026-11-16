@@ -50,7 +50,7 @@ async function fetchedRecipe(url: URL): Promise<{ recipe: ParsedRecipe; bytes: U
   const length = Number(response.headers.get('content-length') || 0); if (length > 15_000_000) throw new Error('Recipe source exceeds the 15 MB import limit.');
   const bytes = new Uint8Array(await response.arrayBuffer()); if (bytes.length > 15_000_000) throw new Error('Recipe source exceeds the 15 MB import limit.');
   const contentType = response.headers.get('content-type') || '';
-  const recipe = /pdf/i.test(contentType) || url.pathname.toLowerCase().endsWith('.pdf') ? await parsePdfRecipe(bytes, url.hostname) : parseHtmlRecipe(new TextDecoder().decode(bytes), url.hostname);
+  const recipe = /pdf/i.test(contentType) || url.pathname.toLowerCase().endsWith('.pdf') ? await parsePdfRecipe(bytes, url.hostname) : parseHtmlRecipe(new TextDecoder().decode(bytes), url.hostname, new URLSearchParams(url.hash.slice(1)).get('recipe') || '');
   return { recipe, bytes, finalUrl: response.url || url.href, contentType };
 }
 

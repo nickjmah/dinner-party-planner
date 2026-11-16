@@ -13,7 +13,7 @@ const UNIT_ALIASES: Record<string, string> = {
   ounces: 'oz', ounce: 'oz', oz: 'oz',
   grams: 'g', gram: 'g', g: 'g', kilograms: 'kg', kilogram: 'kg', kg: 'kg',
   milliliters: 'ml', milliliter: 'ml', ml: 'ml', liters: 'l', liter: 'l', l: 'l',
-  cloves: 'each', clove: 'each', eggs: 'each', egg: 'each',
+  cloves: 'each', clove: 'each',
 };
 
 const PREP_PHRASES = /\b(?:finely|thinly|roughly)?\s*(?:chopped|diced|sliced|minced|peeled|seeded|halved|quartered|grated|crushed|melted|softened|divided|for serving|for garnish|to taste)\b.*$/i;
@@ -59,7 +59,7 @@ export function parseYieldServings(value: string): number | null {
 
 export function parseIngredient(rawText: string): ParsedIngredient {
   const source = rawText.trim().replace(/\s+/g, ' ');
-  const amountMatch = source.match(/^(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)(?:\s*(?:-|–|to)\s*(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?|\d+\/\d+))?/i);
+  const amountMatch = source.match(/^(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?)(?:\s*(?:-|–|to)\s*(\d*[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\/\d+|\d+(?:[.,]\d+)?))?/i);
   const quantity = amountMatch ? parseNumber(amountMatch[2] || amountMatch[1]) : null;
   let rest = amountMatch ? source.slice(amountMatch[0].length).trim() : source;
   rest = rest.replace(/^\s*[×x]\s*/, '');
@@ -67,7 +67,7 @@ export function parseIngredient(rawText: string): ParsedIngredient {
   const possibleUnit = unitMatch?.[1].toLowerCase() ?? '';
   const unit = UNIT_ALIASES[possibleUnit] ?? '';
   if (unit) rest = rest.slice(unitMatch?.[0].length ?? 0).trim();
-  const [beforeNotes, ...notes] = rest.split(/,(.+)/).filter(Boolean);
+  const [beforeNotes = '', ...notes] = rest.split(/,(.+)/).filter(Boolean);
   return {
     quantity,
     unit: unit || (quantity != null ? 'each' : ''),

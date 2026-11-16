@@ -40,6 +40,7 @@ export function detectRecipeLanguage(recipe: TranslationCandidate): string | nul
   if (/\p{Script=Cyrillic}/u.test(text)) return 'ru';
 
   const tokens = new Set(words(text));
+  if (['the', 'and', 'with', 'until', 'into'].filter((word) => tokens.has(word)).length >= 4) return null;
   const scores = Object.entries(LANGUAGE_SIGNALS).map(([language, signals]) => ({
     language,
     score: [...signals].filter((signal) => tokens.has(signal)).length,

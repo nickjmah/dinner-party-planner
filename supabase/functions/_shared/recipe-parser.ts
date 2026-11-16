@@ -38,7 +38,7 @@ function sourceStrings(value: unknown): string[] {
   return value && typeof value === 'object' ? Object.values(value).flatMap(sourceStrings) : [];
 }
 
-export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe'): ParsedRecipe {
+export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe', selectedSection = ''): ParsedRecipe {
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) throw new Error('The recipe page could not be read.');
   const jsonSourceText = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((script) => {
@@ -86,36 +86,50 @@ export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe')
   }
   if (!ingredients.length || !steps.length) {
     const article = document.querySelector('.entry-content');
-    const ingredientLines: string[] = [];
-    const paragraphSteps: string[] = [];
-    let started = false;
     if (article) {
       const paragraphLines = (node: { innerHTML: string }): string[] => {
-        const html = node.innerHTML.replace(/<br\s*\/?\s*>/gi, '\n');
-        const fragment = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+        const fragment = new DOMParser().parseFromString('<div>' + node.innerHTML.replace(/<br\s*\/?\s*>/gi, '\n') + '</div>', 'text/html');
         return String(fragment?.documentElement?.textContent || '').split('\n').map(normalize).filter(Boolean);
       };
-      const blocks = [...article.querySelectorAll('p')].filter((node) => {
-        const lines = paragraphLines(node);
-        return lines.length >= 2 && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line));
-      });
-      if (blocks.length > 1) throw new Error('This article contains multiple recipe components. Use a recipe-specific print page or upload a PDF containing the complete selected recipe.');
-      for (const paragraph of [...article.querySelectorAll('p')]) {
-        const lines = paragraphLines(paragraph);
-        if (!lines.length) continue;
-        if (/^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(lines[0]) && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line))) {
-          started = true; ingredientLines.push(...lines);
-        } else if (started) {
-          if (lines.length >= 2 && !/^(?:total|prep|cook|serves|yield|makes)\b/i.test(lines[0])) paragraphSteps.push(...lines);
-          break;
+      let nodes = [...article.children];
+      const metadata = (node: { textContent: string | null }) => /^total (?:cooking )?time\s*:/i.test(normalize(node.textContent));
+      if (selectedSection) {
+        const start = nodes.findIndex((node) => normalize(node.textContent).toLowerCase() === selectedSection.toLowerCase());
+        if (start < 0) throw new Error('The selected recipe section was not found in the source.');
+        nodes = nodes.slice(start + 1);
+      } else if (nodes.filter(metadata).length > 1) {
+        throw new Error('This article contains multiple dishes. Select the exact recipe using #recipe=Section%20Name on its URL.');
+      }
+      const end = nodes.findIndex(metadata);
+      const timing = end >= 0 ? normalize(nodes[end].textContent) : '';
+      if (end >= 0) nodes = nodes.slice(0, end);
+      const ingredientLines: string[] = [];
+      const method: SourceStep[] = [];
+      let ingredientStart = -1;
+      let lastIngredient = -1;
+      let lastMethod = -1;
+      for (const [index, node] of nodes.entries()) {
+        if (node.tagName === 'P') {
+          const lines = paragraphLines(node);
+          const quantityLines = lines.filter((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line));
+          if ((quantityLines.length || (ingredientStart >= 0 && /:$/.test(lines[0]))) && lines.length >= 2 && (/^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(lines[0]) || /:$/.test(lines[0]))) {
+            ingredientStart = ingredientStart < 0 ? index : ingredientStart;
+            lastIngredient = index;
+            ingredientLines.push(...lines.filter((line) => !/:$/.test(line)));
+          } else if (ingredientStart >= 0 && !method.length && lines.length >= 2 && !/^(?:total|prep|cook|serves|yield|makes)\b/i.test(lines[0])) {
+            method.push(...lines.map((text) => ({ section: '', text })));
+            lastMethod = index;
+          }
+        } else if (node.tagName === 'OL' && ingredientStart >= 0) {
+          method.push(...[...node.querySelectorAll('li')].map((item) => ({ section: '', text: normalize(item.textContent) })).filter((step) => step.text));
+          lastMethod = index;
         }
       }
-      const orderedSteps = [...article.querySelectorAll('ol > li')].map((node) => normalize(node.textContent)).filter(Boolean);
-      const method = orderedSteps.length >= 2 ? orderedSteps : paragraphSteps;
       if (ingredientLines.length >= 2 && method.length >= 2) {
+        if (lastIngredient > lastMethod) throw new Error('A recipe component has no matching instructions.');
         ingredients = ingredientLines;
-        steps = method.map((text) => ({ section: '', text }));
-        sourceType = 'article-recipe-html';
+        steps = method;
+        return { title: selectedSection || normalize(document.querySelector('h1')?.textContent) || fallbackTitle, yieldText: normalize(article.textContent?.match(/(?:serves|makes)\s+([^\n]+)/i)?.[1]), prepMinutes: null, cookMinutes: null, totalMinutes: minutes(timing), ingredients, steps, sourceType: 'article-recipe-html', traceCorpus };
       }
     }
   }

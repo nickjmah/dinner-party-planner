@@ -17,6 +17,9 @@ describe('PDF import source selection', () => {
 });
 
 describe('automatic English translation detection', () => {
+  it('does not mistake English four and minutes for French', () => {
+    expect(detectRecipeLanguage({ title: 'Pastry', yieldText: '8 servings', ingredients: ['4 sheets pastry'], steps: [{ text: 'Put the filling into the pastry and bake with butter until golden for four minutes.' }] })).toBeNull();
+  });
   it('recognizes Spanish recipes without translated section headings', () => {
     const recipe = {
       title: 'Tarta de queso vasca', yieldText: '8 raciones',
