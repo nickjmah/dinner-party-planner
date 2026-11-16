@@ -88,6 +88,8 @@ Deno.serve(async (request) => {
     rollback = null;
     return json({ recipeId, title: translation?.title || source.recipe.title, ingredients: ingredientRows.length, steps: stepRows.length, shoppingItems, translated: Boolean(translation), sourceType: source.recipe.sourceType });
   } catch (error) {
+    const failure = error instanceof Error ? error.message : error && typeof error === 'object' && 'message' in error ? String(error.message) : 'Unexpected import failure';
+    console.error('Recipe import failed:', failure);
     if (rollback) { try { await rollback(); } catch { /* best effort rollback */ } }
     return errorResponse(error);
   }

@@ -153,7 +153,15 @@ export async function revokeDinnerAccessLink(accessLinkId: string): Promise<void
 
 export async function invokeOwnerFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(name, { body });
-  fail(error);
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    if (context instanceof Response) {
+      const payload = await context.clone().json().catch(() => null) as { error?: unknown; message?: unknown } | null;
+      const message = payload?.error || payload?.message;
+      if (typeof message === 'string' && message.trim()) throw new Error(message);
+    }
+    throw new Error(error.message);
+  }
   return data as T;
 }
 

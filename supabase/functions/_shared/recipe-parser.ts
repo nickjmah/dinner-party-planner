@@ -32,10 +32,19 @@ function instructionLines(value: unknown, section = ''): SourceStep[] {
   const text = normalize(node.text || node.name); return text ? [{ section, text }] : instructionLines(node.itemListElement, section);
 }
 
+function sourceStrings(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(sourceStrings);
+  return value && typeof value === 'object' ? Object.values(value).flatMap(sourceStrings) : [];
+}
+
 export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe'): ParsedRecipe {
   const document = new DOMParser().parseFromString(html, 'text/html');
   if (!document) throw new Error('The recipe page could not be read.');
-  const traceCorpus = `${html}\n${document.documentElement?.textContent || ''}`;
+  const jsonSourceText = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((script) => {
+    try { return sourceStrings(JSON.parse(script.textContent || 'null')); } catch { return []; }
+  }).join('\n');
+  const traceCorpus = `${html}\n${document.documentElement?.textContent || ''}\n${jsonSourceText}`;
   const structured: ParsedRecipe[] = [];
   const fingerprints = new Set<string>();
   for (const script of [...document.querySelectorAll('script[type="application/ld+json"]')]) {
@@ -69,6 +78,43 @@ export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe')
       return [...group.querySelectorAll('.wprm-recipe-instruction')].map((node) => ({ section, text: normalize(node.textContent) })).filter((step) => step.text);
     });
     sourceType = 'wprm-print-html';
+  }
+  if (!ingredients.length || !steps.length) {
+    ingredients = itemText('.easyrecipe .ingredient');
+    steps = itemText('.easyrecipe .instruction').map((text) => ({ section: '', text }));
+    sourceType = 'easyrecipe-html';
+  }
+  if (!ingredients.length || !steps.length) {
+    const article = document.querySelector('.entry-content');
+    const ingredientLines: string[] = [];
+    const paragraphSteps: string[] = [];
+    let started = false;
+    if (article) {
+      const blocks = [...article.querySelectorAll('p')].filter((node) => {
+        const lines = String(node.textContent || '').split('\n').map(normalize).filter(Boolean);
+        return lines.length >= 2 && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line));
+      });
+      if (blocks.length > 1) throw new Error('This article contains multiple recipe components. Use a recipe-specific print page or upload a PDF containing the complete selected recipe.');
+      for (const paragraph of [...article.querySelectorAll('p')]) {
+        const text = (paragraph.innerHTML || '').replace(/<br\s*\/?\s*>/gi, '\n');
+        const fragment = new DOMParser().parseFromString(`<div>${text}</div>`, 'text/html');
+        const lines: string[] = (fragment?.textContent || fragment?.documentElement?.textContent || '').split('\n').map(normalize).filter(Boolean);
+        if (!lines.length) continue;
+        if (/^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(lines[0]) && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line))) {
+          started = true; ingredientLines.push(...lines);
+        } else if (started) {
+          if (lines.length >= 2 && !/^(?:total|prep|cook|serves|yield|makes)\b/i.test(lines[0])) paragraphSteps.push(...lines);
+          break;
+        }
+      }
+      const orderedSteps = [...article.querySelectorAll('ol > li')].map((node) => normalize(node.textContent)).filter(Boolean);
+      const method = orderedSteps.length >= 2 ? orderedSteps : paragraphSteps;
+      if (ingredientLines.length >= 2 && method.length >= 2) {
+        ingredients = ingredientLines;
+        steps = method.map((text) => ({ section: '', text }));
+        sourceType = 'article-recipe-html';
+      }
+    }
   }
   if (!ingredients.length || !steps.length) throw new Error('The page does not expose a traceable recipe. Try its print page, a public PDF, or a PDF upload.');
   return { title: normalize(document.querySelector('[itemprop="name"], .wprm-recipe-name, h1')?.textContent) || fallbackTitle, yieldText: normalize(document.querySelector('[itemprop="recipeYield"], .wprm-recipe-servings')?.textContent), prepMinutes: minutes(document.querySelector('[itemprop="prepTime"], .wprm-recipe-prep_time')?.textContent), cookMinutes: minutes(document.querySelector('[itemprop="cookTime"], .wprm-recipe-cook_time')?.textContent), totalMinutes: minutes(document.querySelector('[itemprop="totalTime"], .wprm-recipe-total_time')?.textContent), ingredients, steps, sourceType, traceCorpus };
