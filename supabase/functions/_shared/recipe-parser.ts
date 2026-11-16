@@ -90,15 +90,18 @@ export function parseHtmlRecipe(html: string, fallbackTitle = 'Imported recipe')
     const paragraphSteps: string[] = [];
     let started = false;
     if (article) {
+      const paragraphLines = (node: { innerHTML: string }): string[] => {
+        const html = node.innerHTML.replace(/<br\s*\/?\s*>/gi, '\n');
+        const fragment = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+        return String(fragment?.documentElement?.textContent || '').split('\n').map(normalize).filter(Boolean);
+      };
       const blocks = [...article.querySelectorAll('p')].filter((node) => {
-        const lines = String(node.textContent || '').split('\n').map(normalize).filter(Boolean);
+        const lines = paragraphLines(node);
         return lines.length >= 2 && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line));
       });
       if (blocks.length > 1) throw new Error('This article contains multiple recipe components. Use a recipe-specific print page or upload a PDF containing the complete selected recipe.');
       for (const paragraph of [...article.querySelectorAll('p')]) {
-        const text = (paragraph.innerHTML || '').replace(/<br\s*\/?\s*>/gi, '\n');
-        const fragment = new DOMParser().parseFromString(`<div>${text}</div>`, 'text/html');
-        const lines: string[] = (fragment?.textContent || fragment?.documentElement?.textContent || '').split('\n').map(normalize).filter(Boolean);
+        const lines = paragraphLines(paragraph);
         if (!lines.length) continue;
         if (/^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(lines[0]) && lines.every((line) => /^(?:\d|[¼½¾⅓⅔⅛⅜⅝⅞])/.test(line))) {
           started = true; ingredientLines.push(...lines);
