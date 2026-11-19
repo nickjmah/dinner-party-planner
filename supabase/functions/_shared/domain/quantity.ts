@@ -79,6 +79,9 @@ export function parseIngredient(rawText: string): ParsedIngredient {
 export function canonicalIngredient(input: string): string {
   let value = input.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   value = value
+    .replace(/\b(?:fresh|chopped|finely chopped|flat[- ]leaf|italian)\s+(?=parsley|cilantro|mint)/g, '')
+    .replace(/\b(?:pinch\s+)?ground cinnamon\b/g, 'cinnamon')
+    .replace(/\bsweet oranges\b/g, 'oranges')
     .replace(/extra[- ]virgin/g, 'extra virgin')
     .replace(/\balli?oli\b|\bcupaioli\b/g, 'aioli')
     .replace(/vegetable of other neutral oil/g, 'neutral oil')

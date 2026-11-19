@@ -67,3 +67,12 @@ describe('shopping consolidation', () => {
   });
   it('does not combine distinct tomato varieties', () => expect(build([recipe('recipe_1')], [ingredient('ingredient_1', 'recipe_1', 'cherry tomato', 2, 'each'), ingredient('ingredient_2', 'recipe_1', 'plum tomato', 3, 'each')])).toHaveLength(2));
 });
+describe('combined herb requirements', () => {
+ it('shows one row per herb without inventing a split for a mixed bouquet', () => {
+  const rows = build([recipe('r')], [ingredient('a','r','parsley',2,'tbsp'), ingredient('b','r','mixed parsley and cilantro',1,'each','1 mixed herb bouquet')]);
+  expect(rows.map(row=>row.item).sort()).toEqual(['cilantro','parsley']);
+  const parsley=rows.find(row=>row.item==='parsley')!;
+  expect(parsley.quantity).toBe(2); expect(parsley.unquantified_required).toBe(true);
+  expect(parsley.raw_sources).toContainEqual(expect.objectContaining({ ingredientId:'b', scaledQuantity:null, rawText:expect.stringContaining('split unspecified') }));
+ });
+});

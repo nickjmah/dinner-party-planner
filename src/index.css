@@ -88,3 +88,9 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 .editor-invite-accept p:not(.eyebrow):not(.form-error) { color:#aaa69c;line-height:1.5; }
 @media (max-width:900px) { .editor-access-lists { grid-template-columns:1fr; } }
 @media (max-width:700px) { .editor-access-head { align-items:stretch;flex-direction:column; }.editor-access-actions { justify-content:stretch; }.editor-access-actions .button { flex:1; }.editor-link-result { grid-template-columns:1fr; } }
+
+.shopping-name details { margin-top: .5rem; font-size: .85rem; }
+.shopping-name summary { cursor: pointer; color: var(--muted); }
+.shopping-name ul { padding-left: 1.1rem; margin: .5rem 0; }
+.shopping-name li { margin-bottom: .5rem; }
+.shopping-name small { white-space: normal; }

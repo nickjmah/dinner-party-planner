@@ -64,9 +64,31 @@ export function buildShoppingItems(input: ShoppingBuildInput): ShoppingItem[] {
     const factor = UNITS[ingredient.unit]?.factor || 1;
     const quantity = ingredient.quantity == null ? null : ingredient.quantity * recipeScale(recipe, input.guestCount);
     const part = { ingredientId: ingredient.id, recipeId: recipe.id, recipeTitle: recipe.short_title || recipe.translated_title || recipe.title, rawText: ingredient.raw_text, quantity, unit: ingredient.unit, dimension, baseQuantity: quantity == null ? 0 : quantity * factor };
-    (grouped.get(item) || grouped.set(item, []).get(item)!).push(part);
+    if (item === 'mixed parsley and cilantro') {
+      // The source gives a combined bouquet/handful, not an amount for each herb.
+      for (const herb of ['parsley', 'cilantro']) {
+        const shared: SourcePart = { ...part, quantity: null, unit: '', dimension: 'unquantified', baseQuantity: 0,
+          rawText: `Shared parsley/cilantro mix (${quantity == null ? 'handful / unmeasured' : `${quantity} ${ingredient.unit}`}); split unspecified. ${ingredient.raw_text}` };
+        (grouped.get(herb) || grouped.set(herb, []).get(herb)!).push(shared);
+      }
+    } else (grouped.get(item) || grouped.set(item, []).get(item)!).push(part);
   });
-  const existingByItem = new Map(input.existing.map((row) => [canonicalIngredient(row.item), row]));
+  const existingByItem = new Map<string, ShoppingItem>();
+  for (const row of input.existing) {
+    const name = canonicalIngredient(row.item);
+    const previous = existingByItem.get(name);
+    if (!previous) { existingByItem.set(name, row); continue; }
+    // Preserve both records when aliases collapse into one shopping entry.
+    const compatible = previous.unit === row.unit && !previous.component_requirements.length && !row.component_requirements.length;
+    existingByItem.set(name, { ...previous,
+      notes: [...new Set([previous.notes, row.notes].filter(Boolean))].join('\n'),
+      assignee: [...new Set([previous.assignee, row.assignee].filter(Boolean))].join(', '),
+      purchased: previous.purchased && row.purchased,
+      quantity: compatible ? Number(previous.quantity || 0) + Number(row.quantity || 0) : previous.quantity,
+      manual_covered_quantity: compatible ? previous.manual_covered_quantity + row.manual_covered_quantity : previous.manual_covered_quantity,
+      covered_quantity: compatible ? previous.covered_quantity + row.covered_quantity : previous.covered_quantity,
+    });
+  }
   const rows = [...grouped.entries()].map(([item, sources]) => {
     const quantified = [...new Set(sources.filter((source) => source.dimension !== 'unquantified').map((source) => source.dimension))];
     const components = quantified.map((dimension) => displayComponent(item, dimension, sources.filter((source) => source.dimension === dimension).reduce((sum, source) => sum + source.baseQuantity, 0), sources.filter((source) => source.dimension === dimension).map((source) => source.unit)));
