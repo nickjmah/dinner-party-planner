@@ -40,7 +40,7 @@ export default function App() {
 
   return (
     <Routes key={session?.user.id || 'signed-out'}>
-      <Route path="/login" element={session && !session.user.is_anonymous ? <Navigate to={pendingInvite ? `/join/${pendingInvite}` : '/app'} replace /> : <LoginPage />} />
+      <Route path="/login" element={session && !session.user.is_anonymous ? <Navigate to="/app" replace /> : <LoginPage />} />
       <Route path="/app" element={<OwnerRoute session={session}><DinnersPage /></OwnerRoute>} />
       <Route path="/app/dinners/:dinnerId" element={<OwnerRoute session={session}><DinnerPage /></OwnerRoute>} />
       <Route path="/app/dinners/:dinnerId/print" element={<OwnerRoute session={session}><PrintDinnerPage /></OwnerRoute>} />

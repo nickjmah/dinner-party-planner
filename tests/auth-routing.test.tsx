@@ -12,9 +12,10 @@ vi.mock('../src/pages/DinnersPage', () => ({ DinnersPage: () => <p>My dinners</p
 vi.mock('../src/pages/EditorInvitePage', () => ({ EditorInvitePage: () => <p>Editor invitation</p> }));
 import App from '../src/App';
 afterEach(() => { cleanup(); localStorage.clear(); history.replaceState({}, '', '/'); });
-function show(session: unknown) { auth.session = session; render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/login']}><App /></MemoryRouter></QueryClientProvider>); }
+function show(session: unknown, path = '/login') { auth.session = session; render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[path]}><App /></MemoryRouter></QueryClientProvider>); }
 describe('owner login routing', () => {
  it('ignores an old saved invitation for a normal owner login', async () => { localStorage.setItem('pending-dinner-editor-invite', 'stale'); show({ user: { id: 'owner', is_anonymous: false } }); expect(await screen.findByText('My dinners')).toBeVisible(); });
  it('allows an anonymous editor to sign into the owner account', async () => { show({ user: { id: 'anonymous', is_anonymous: true } }); expect(await screen.findByText('Owner sign-in form')).toBeVisible(); });
- it('keeps explicit invitation confirmation redirects working', async () => { history.replaceState({}, '', '/?editorInvite=current'); show({ user: { id: 'editor', is_anonymous: false } }); expect(await screen.findByText('Editor invitation')).toBeVisible(); });
+ it('does not redirect an explicit owner login even with an old invite URL parameter', async () => { history.replaceState({}, '', '/?editorInvite=stale'); show({ user: { id: 'owner', is_anonymous: false } }); expect(await screen.findByText('My dinners')).toBeVisible(); });
+ it('keeps explicit invitation confirmation redirects working', async () => { history.replaceState({}, '', '/?editorInvite=current'); show({ user: { id: 'editor', is_anonymous: false } }, '/'); expect(await screen.findByText('Editor invitation')).toBeVisible(); });
 });
