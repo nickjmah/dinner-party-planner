@@ -1,3 +1,4 @@
+import { recipeSection } from './recipe-sections';
 import type { Dinner, DinnerAccessLink, DinnerDetail, DinnerEditor, DinnerEditorInvite, GuestDinner, Ingredient, Recipe, RecipeStep, ShoppingItem, TimelineTask } from '../types';
 import { supabase } from './supabase';
 import { buildShoppingItems } from './shopping';
@@ -79,7 +80,7 @@ export async function completePlannedRecipe(planned: Recipe, importedRecipeId: s
     short_title: planned.short_title || planned.title,
     target_servings: planned.target_servings,
     created_at: planned.created_at,
-    provenance: { ...importedProvenance, planned_menu_notes: typeof plannedProvenance.menu_notes === 'string' ? plannedProvenance.menu_notes : '' },
+    provenance: { ...importedProvenance, recipe_section: recipeSection(planned), planned_menu_notes: typeof plannedProvenance.menu_notes === 'string' ? plannedProvenance.menu_notes : '' },
   }).eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);
   if (updateError) {
     await supabase.from('recipes').delete().eq('id', importedRecipeId).eq('dinner_id', planned.dinner_id);

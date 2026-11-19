@@ -94,3 +94,9 @@ label { display:grid; gap:.38rem; font-size:.78rem; font-weight:700; letter-spac
 .shopping-name ul { padding-left: 1.1rem; margin: .5rem 0; }
 .shopping-name li { margin-bottom: .5rem; }
 .shopping-name small { white-space: normal; }
+
+.section-switch { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; }
+.section-switch.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.section-heading { margin: .5rem 0 0; font-size: 1.2rem; }
+.section-hint { color: #a6a296; font-size: .8rem; margin: 0; line-height: 1.5; }
+.shopping-name .shared-ingredient { color: var(--brass); }
