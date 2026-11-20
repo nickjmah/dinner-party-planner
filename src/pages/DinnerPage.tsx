@@ -1,3 +1,4 @@
+import { cookingTasks, clockMinutes, cookingTime, cookingEnd } from '../lib/cooking';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -169,8 +170,13 @@ function SortableTask({ task, detail, update }: { task: TimelineTask; detail: Di
 }
 
 function Cooking({ detail, update }: { detail: DinnerDetail; update: (input: { table: string; id: string; patch: Record<string, unknown> }) => void }) {
-  const partyTasks = sortTimeline(detail.tasks.filter((task) => task.day_offset === 0));
-  return <div className="view-stack"><section className="cooking-banner"><div><p className="eyebrow">Party-day run of show</p><h2>Service at {detail.dinner.serve_time.slice(0, 5)}</h2></div><strong>{partyTasks.filter((task) => task.status !== 'done').length} remaining</strong></section>{partyTasks.map((task) => <Card className={`cook-task ${task.status === 'done' ? 'done' : ''}`} key={task.id}><time>{task.start_time.slice(0, 5)}</time><label className="check"><input type="checkbox" checked={task.status === 'done'} onChange={(event) => update({ table: 'tasks', id: task.id, patch: { status: event.target.checked ? 'done' : 'todo' } })} /><span><Check /></span></label><div><h3>{task.title}</h3><p>{task.timing_note}</p><span>{task.resource} · {task.duration_minutes} min</span></div></Card>)}</div>;
+  const partyTasks = cookingTasks(detail.tasks);
+  const remaining = partyTasks.filter((task) => task.status !== 'done').length;
+  return <div className="view-stack"><section className="cooking-banner"><div><p className="eyebrow">Party-day run of show</p><h2>Service starts at {cookingTime(clockMinutes(detail.dinner.serve_time))}</h2>{partyTasks.length > 0 && <p>Schedule through {cookingEnd(partyTasks)}</p>}</div><strong>{remaining} of {partyTasks.length} tasks left</strong></section><p className="section-hint">Tasks are listed by start time. Check each off when finished; overlapping times mean work happens in parallel.</p>{!partyTasks.length && <EmptyState icon={<CookingPot />} title="No party-day tasks">Add tasks in Prep to build your cooking schedule.</EmptyState>}{partyTasks.map((task) => {
+    const recipe = detail.recipes.find((recipe) => recipe.id === task.recipe_id);
+    const steps = detail.steps.filter((step) => task.source_step_ids.includes(step.id));
+    return <Card className={`cook-task ${task.status === 'done' ? 'done' : ''}`} key={task.id}><time>{cookingTime(clockMinutes(task.start_time))}<small>to {cookingTime(clockMinutes(task.start_time) + task.duration_minutes)}</small></time><label className="check"><input aria-label={`Mark ${task.title} complete`} type="checkbox" checked={task.status === 'done'} onChange={(event) => update({ table: 'tasks', id: task.id, patch: { status: event.target.checked ? 'done' : 'todo' } })} /><span><Check /></span></label><div><h3>{task.title}</h3>{recipe && <p className="cooking-recipe">{recipe.short_title || recipe.translated_title || recipe.title}</p>}{(task.notes || task.timing_note) && <p>{task.notes || task.timing_note}</p>}<span>{task.resource} · {task.duration_minutes} min</span>{steps.length > 0 && <details className="cooking-method"><summary>Recipe steps ({steps.length})</summary><ol>{steps.map((step) => <li key={step.id}>{step.translated_text || step.raw_text}</li>)}</ol></details>}</div></Card>;
+  })}</div>;
 }
 
 function ManualRecipeEditor({ detail, recipe, close, completed }: { detail: DinnerDetail; recipe: Recipe; close: () => void; completed: () => void }) {
